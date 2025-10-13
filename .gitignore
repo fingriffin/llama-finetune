@@ -67,3 +67,5 @@ configs/*
 !configs/.gitkeep
 
 models/*
+
+llama-finetune.zip
