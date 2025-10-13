@@ -1,0 +1,133 @@
+"""Finetune a model based on a given config file."""
+
+import click
+import os
+from dotenv import load_dotenv
+
+from loguru import logger
+from llama_finetune.logging import setup_logging
+from llama_finetune.config import load_finetune_config
+
+from axolotl.cli.config import load_cfg
+from axolotl.utils.dict import DictDefault
+from axolotl.common.datasets import load_datasets
+from axolotl.train import train
+
+from pathlib import Path
+
+@click.command()
+@click.argument("config_path")
+@click.option("--log-level", default="INFO", help="Logging level")
+@click.option("--log-file", help="Log file path")
+@click.option("--model-name", help="Override model name")
+@click.option("--train-data-path", help="Override training data path")
+@click.option("--output-dir", help="Override output directory")
+@click.option("--epochs", type=int, help="Override number of epochs")
+@click.option("--micro-batch-size", type=int, help="Override micro batch size")
+@click.option("--learning-rate", type=float, help="Override learning rate")
+@click.option("--optimizer", help="Override optimizer")
+@click.option("--seed", type=int, help="Override random seed")
+@click.option("--device-map", help="Override device map (e.g., 'auto', 'cpu', 'cuda')")
+@click.option("--bf16/--no-bf16", default=None, help="Override bf16 usage")
+@click.option("--fp16/--no-fp16", default=None, help="Override fp16 usage")
+@click.option("--load-in-8bit/--no-load-in-8bit", default=None, help="Override 8-bit loading")
+def main(config_path, log_level, log_file, model_name, train_data_path, output_dir, epochs, micro_batch_size, learning_rate, optimizer, seed, device_map, bf16, fp16, load_in_8bit):
+    """Run finetuning job based on the provided config file."""
+    # Setup logging and environment
+    setup_logging(level=log_level, log_file=log_file)
+    load_dotenv()
+    hf_token = os.getenv("HF_TOKEN")
+    if not hf_token:
+        raise RuntimeError("HF_TOKEN not found in .env file.")
+
+    # Load config
+    try:
+        logger.info("Loading config from {}", config_path)
+        config = load_finetune_config(config_path)
+        logger.success("Config loaded successfully!")
+        print("Current configuration:")
+        print(config.model_dump_json(indent=2))
+        print("")
+    except Exception as e:
+        logger.error("Failed to load config: {}", e)
+        raise
+
+    # Apply overrides if provided
+    if model_name:
+        config.model_name = model_name
+    if train_data_path:
+        config.train_data_path = train_data_path
+    if output_dir:
+        config.output_dir = output_dir
+    if epochs is not None:
+        config.epochs = epochs
+    if micro_batch_size is not None:
+        config.micro_batch_size = micro_batch_size
+    if learning_rate is not None:
+        config.learning_rate = learning_rate
+    if optimizer:
+        config.optimizer = optimizer
+    if seed is not None:
+        config.seed = seed
+    if device_map:
+        config.device_map = device_map
+    if bf16 is not None:
+        config.bf16 = bf16
+    if fp16 is not None:
+        config.fp16 = fp16
+    if load_in_8bit is not None:
+        config.load_in_8bit = load_in_8bit
+
+    # Resolve data path
+    data_path = Path(config.train_data_path).expanduser().resolve()
+    if not data_path.exists():
+        logger.error("Training data not found at: {}", data_path)
+        raise
+
+    logger.info("Starting finetuning job...")
+
+    # Convert config to axolotl config
+    axolotl_cfg_raw = DictDefault(
+        base_model=config.model_name,
+        load_in_8bit=config.load_in_8bit,
+        bf16=config.bf16,
+        fp16=config.fp16,
+        optimizer=config.optimizer,
+        adaptor="lora",
+        output_dir=config.output_dir,
+        num_epochs=config.epochs,
+        micro_batch_size=config.micro_batch_size,
+        gradient_accumulation_steps=config.gradient_accumulation_steps,
+        learning_rate=config.learning_rate,
+        lora_r=config.lora_r,
+        lora_alpha=config.lora_alpha,
+        lora_dropout=config.lora_dropout,
+        seed=config.seed,
+        device_map=config.device_map,
+        gradient_checkpointing=config.gradient_checkpointing,
+        sequence_len=config.sequence_len,
+        flash_attention=config.flash_attention,
+        save_steps=0,
+        save_strategy="no",
+        save_total_limit=0,
+        save_only_model=True,
+        datasets=[
+            {
+                "path": str(data_path),
+                "type": "alpaca",
+            }
+        ],
+    )
+
+    # Add pad token only if model is a Llama
+    if "llama" in config.model_name.lower():
+        axolotl_cfg_raw.setdefault("special_tokens", {})["pad_token"] = "<PAD>"
+
+    axolotl_cfg = load_cfg(axolotl_cfg_raw)
+
+    # Load dataset
+    train_dataset = load_datasets(cfg=axolotl_cfg)
+    logger.info("Training dataset loaded from {}", str(data_path))
+
+    # Start training
+    model, tokenizer, trainer = train(cfg=axolotl_cfg, dataset_meta=train_dataset)

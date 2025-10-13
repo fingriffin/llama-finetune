@@ -11,6 +11,9 @@ dependencies = [
     "bitsandbytes; sys_platform == 'linux'",
 ]
 
+[project.scripts]
+finetune = "llama_finetune.cli.finetune:main"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 

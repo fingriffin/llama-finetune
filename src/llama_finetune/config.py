@@ -23,9 +23,9 @@ class FinetuneConfig(BaseModel):
     lora_alpha: int = Field(16, description="LoRA alpha")
     lora_dropout: float = Field(0.05, description="LoRA dropout")
     sequence_len: int = Field(1024, description="Maximum sequence length")
+    device_map: str = Field("auto", description="Device map for model loading")
     flash_attention: bool = Field(False, description="Use flash attention if available")
     seed: int = Field(42, description="Random seed")
-    hf_token: str = Field(..., description="Hugging Face token for model access")
     push_to_hub: bool = Field(False, description="Whether to push the adaptor to Hugging Face Hub after training")
 
     @field_validator("output_dir")

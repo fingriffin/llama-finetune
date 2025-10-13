@@ -55,8 +55,13 @@ htmlcov/
 *.local
 
 # Project specific
-data/*
+data/**
+!data/
+!data/input/
+!data/output/
 !data/.gitkeep
+!data/input/.gitkeep
+!data/output/.gitkeep
 
 configs/*
 !configs/.gitkeep
