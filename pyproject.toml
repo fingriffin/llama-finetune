@@ -5,6 +5,10 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "axolotl>=0.12.2",
+    "loguru>=0.7.3",
+    "pydantic>=2.10.6",
+    "bitsandbytes; sys_platform == 'linux'",
 ]
 
 [tool.setuptools]
