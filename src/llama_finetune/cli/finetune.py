@@ -1,12 +1,11 @@
 """Finetune a model based on a given config file."""
 
 import click
-import os
-from dotenv import load_dotenv
 
 from loguru import logger
 from llama_finetune.logging import setup_logging
 from llama_finetune.config import load_finetune_config
+from llama_finetune.hf import configure_hf, get_token
 
 from axolotl.cli.config import load_cfg
 from axolotl.utils.dict import DictDefault
@@ -35,10 +34,8 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
     """Run finetuning job based on the provided config file."""
     # Setup logging and environment
     setup_logging(level=log_level, log_file=log_file)
-    load_dotenv()
-    hf_token = os.getenv("HF_TOKEN")
-    if not hf_token:
-        raise RuntimeError("HF_TOKEN not found in .env file.")
+    configure_hf()
+    get_token()
 
     # Load config
     try:
