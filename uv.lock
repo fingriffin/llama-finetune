@@ -1538,6 +1538,7 @@ dependencies = [
     { name = "bitsandbytes", marker = "sys_platform == 'linux'" },
     { name = "loguru" },
     { name = "pydantic" },
+    { name = "wandb" },
 ]
 
 [package.dev-dependencies]
@@ -1551,6 +1552,7 @@ requires-dist = [
     { name = "bitsandbytes", marker = "sys_platform == 'linux'" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "pydantic", specifier = ">=2.10.6" },
+    { name = "wandb", specifier = ">=0.22.2" },
 ]
 
 [package.metadata.requires-dev]

@@ -1,8 +1,9 @@
 """Finetune a model based on a given config file."""
 
 import click
-
 from loguru import logger
+import wandb
+
 from llama_finetune.logging import setup_logging
 from llama_finetune.config import load_finetune_config
 from llama_finetune.hf import configure_hf, get_token
@@ -14,6 +15,8 @@ from axolotl.common.datasets import load_datasets
 from axolotl.train import train
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
 
 @click.command()
 @click.argument("config_path")
@@ -77,6 +80,17 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
     # Configure HF environment
     configure_hf(config.model_name)
     get_token()
+
+    # Configure W&B
+    load_dotenv()
+    wandb.login(key=os.getenv("WANDB_API_KEY"))
+
+    run = wandb.init(
+        project=os.getenv("WANDB_PROJECT"),
+        entity=os.getenv("WANDB_ENTITY"),
+        name=os.path.splitext(os.path.basename(config_path.replace("configs/", "")))[0], # Config file name
+        config=config.model_dump(),
+    )
 
     # Resolve data path
     data_path = Path(config.train_data_path).expanduser().resolve()
@@ -144,5 +158,8 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
     train_dataset = load_datasets(cfg=axolotl_cfg)
     logger.info("Training dataset loaded from {}", str(data_path))
 
-    # Start training
-    model, tokenizer, trainer = train(cfg=axolotl_cfg, dataset_meta=train_dataset)
+    # Training
+    try:
+        model, tokenizer, trainer = train(cfg=axolotl_cfg, dataset_meta=train_dataset)
+    finally:
+        wandb.finish()
