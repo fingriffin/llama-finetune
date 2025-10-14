@@ -8,6 +8,7 @@ from llama_finetune.config import load_finetune_config
 from llama_finetune.hf import configure_hf, get_token
 
 from axolotl.cli.config import load_cfg
+from axolotl.cli.preprocess import do_preprocess, PreprocessCliArgs
 from axolotl.utils.dict import DictDefault
 from axolotl.common.datasets import load_datasets
 from axolotl.train import train
@@ -133,6 +134,11 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
         axolotl_cfg_raw.setdefault("special_tokens", {})["pad_token"] = "<PAD>"
 
     axolotl_cfg = load_cfg(axolotl_cfg_raw)
+
+    # Preprocess config for VRAM stability
+    logger.info("Preprocessing axolotl config...")
+    cli_args = PreprocessCliArgs()
+    do_preprocess(axolotl_cfg, cli_args)
 
     # Load dataset
     train_dataset = load_datasets(cfg=axolotl_cfg)
