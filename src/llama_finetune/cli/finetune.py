@@ -1,8 +1,9 @@
 """Finetune a model based on a given config file."""
 
 import click
-
 from loguru import logger
+import wandb
+
 from llama_finetune.logging import setup_logging
 from llama_finetune.config import load_finetune_config
 from llama_finetune.hf import configure_hf, get_token
@@ -14,6 +15,9 @@ from axolotl.common.datasets import load_datasets
 from axolotl.train import train
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
+from datetime import datetime
 
 @click.command()
 @click.argument("config_path")
@@ -78,6 +82,10 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
     configure_hf(config.model_name)
     get_token()
 
+    # Configure W&B
+    load_dotenv()
+    wandb.login(key=os.getenv("WANDB_API_KEY"))
+
     # Resolve data path
     data_path = Path(config.train_data_path).expanduser().resolve()
     if not data_path.exists():
@@ -127,6 +135,12 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
             "up_proj",
             "down_proj",
         ],
+        use_wandb=True,
+        wandb_project="llama-finetune",
+        wandb_entity="flsg2",
+        wandb_name=f"{os.path.splitext(os.path.basename(config_path.replace('configs/', '')))[0]}_{datetime.now().strftime('%Y%m%d_%H%M')}",
+        wandb_watch="checkpoint",
+        wandb_log_model="checkpoint",
     )
 
     # Add pad token only if model is a Llama
@@ -144,5 +158,5 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
     train_dataset = load_datasets(cfg=axolotl_cfg)
     logger.info("Training dataset loaded from {}", str(data_path))
 
-    # Start training
+    # Training
     model, tokenizer, trainer = train(cfg=axolotl_cfg, dataset_meta=train_dataset)
