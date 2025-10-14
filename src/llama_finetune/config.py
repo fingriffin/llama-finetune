@@ -5,6 +5,7 @@ from pathlib import Path
 class FinetuneConfig(BaseModel):
     """Configuration for LoRA finetuning"""
     model_name: str = Field(..., description="Name of the model to use")
+    adapter: str = Field(..., description="Name of the adpter model to use")
     load_in_8bit: bool = Field(False, description="Load the model from 8bit")
     load_in_4bit: bool = Field(False, description="Load the model from 4bit")
     bf16: bool = Field(False, description="Load the model from BF16")

@@ -32,10 +32,8 @@ from pathlib import Path
 @click.option("--load-in-8bit/--no-load-in-8bit", default=None, help="Override 8-bit loading")
 def main(config_path, log_level, log_file, model_name, train_data_path, output_dir, epochs, micro_batch_size, learning_rate, optimizer, seed, device_map, bf16, fp16, load_in_8bit):
     """Run finetuning job based on the provided config file."""
-    # Setup logging and environment
+    # Setup logging
     setup_logging(level=log_level, log_file=log_file)
-    configure_hf()
-    get_token()
 
     # Load config
     try:
@@ -75,6 +73,10 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
     if load_in_8bit is not None:
         config.load_in_8bit = load_in_8bit
 
+    # Configure HF environment
+    configure_hf(config.model_name)
+    get_token()
+
     # Resolve data path
     data_path = Path(config.train_data_path).expanduser().resolve()
     if not data_path.exists():
@@ -86,11 +88,12 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
     # Convert config to axolotl config
     axolotl_cfg_raw = DictDefault(
         base_model=config.model_name,
+        adapter=config.adapter,
         load_in_8bit=config.load_in_8bit,
+        load_in_4bit=config.load_in_4bit,
         bf16=config.bf16,
         fp16=config.fp16,
         optimizer=config.optimizer,
-        adaptor="lora",
         output_dir=config.output_dir,
         num_epochs=config.epochs,
         micro_batch_size=config.micro_batch_size,
@@ -113,6 +116,15 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
                 "path": str(data_path),
                 "type": "alpaca",
             }
+        ],
+        lora_target_modules=[
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
         ],
     )
 

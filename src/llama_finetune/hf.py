@@ -3,9 +3,10 @@
 import os
 from dotenv import load_dotenv
 
-def configure_hf():
-    os.environ["HF_HOME"] =  "models/"
-    os.environ["TRANSFORMERS_CACHE"] = "models/"
+def configure_hf(model_name: str):
+    dir = f"models/{model_name}"
+    os.environ["HF_HOME"] =  dir
+    os.environ["TRANSFORMERS_CACHE"] = dir
 
 def get_token():
     load_dotenv()
