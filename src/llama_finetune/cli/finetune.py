@@ -123,7 +123,10 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
         datasets=[
             {
                 "path": str(data_path),
-                "type": "alpaca",
+                "type": "chat_template",
+                "field_messages": "messages",
+                "message_field_role": "from",
+                "message_field_content": "value",
             }
         ],
         lora_target_modules=[
