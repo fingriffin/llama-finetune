@@ -95,10 +95,14 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
     wandb.login(key=os.getenv("WANDB_API_KEY"))
 
     # Resolve data path
-    data_path = Path(config.train_data_path).expanduser().resolve()
-    if not data_path.exists():
-        logger.error("Training data not found at: {}", data_path)
-        raise
+    if str(config.train_data_path).startswith(os.getenv('HF_ORG') + '/'):
+        data_path = config.train_data_path
+        logger.info(f"Detected Hugging Face dataset: {config.train_data_path}")
+    else:
+        data_path = Path(config.train_data_path).expanduser().resolve()
+        if not data_path.exists():
+            logger.error("Training data not found at: {}", data_path)
+            raise
 
     logger.info("Starting finetuning job...")
 
@@ -149,7 +153,10 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
                 "field_messages": "messages",
                 "message_field_role": "from",
                 "message_field_content": "value",
-            },
+            }
+        ],
+
+        test_datasets=[
             *(
                 [{
                     "path": str(data_path),
@@ -162,6 +169,7 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
                 if config.do_validation else []
             )
         ],
+        eval_steps = 1,
 
         use_wandb=True,
         wandb_project=os.getenv('WANDB_PROJECT'),
