@@ -105,38 +105,27 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
     # Convert config to axolotl config
     axolotl_cfg_raw = DictDefault(
         base_model=config.model_name,
+        seed=config.seed,
+        output_dir=config.output_dir,
+        device_map=config.device_map,
+
         adapter=config.adapter,
         load_in_8bit=config.load_in_8bit,
         load_in_4bit=config.load_in_4bit,
         bf16=config.bf16,
         fp16=config.fp16,
         optimizer=config.optimizer,
-        output_dir=config.output_dir,
         num_epochs=config.epochs,
-        micro_batch_size=config.micro_batch_size,
-        gradient_accumulation_steps=config.gradient_accumulation_steps,
         learning_rate=config.learning_rate,
+        micro_batch_size=config.micro_batch_size,
+        sequence_len=config.sequence_len,
+        gradient_accumulation_steps=config.gradient_accumulation_steps,
+        gradient_checkpointing=config.gradient_checkpointing,
+        flash_attention=config.flash_attention,
+
         lora_r=config.lora_r,
         lora_alpha=config.lora_alpha,
         lora_dropout=config.lora_dropout,
-        seed=config.seed,
-        device_map=config.device_map,
-        gradient_checkpointing=config.gradient_checkpointing,
-        sequence_len=config.sequence_len,
-        flash_attention=config.flash_attention,
-        save_steps=0,
-        save_strategy="no",
-        save_total_limit=0,
-        save_only_model=True,
-        datasets=[
-            {
-                "path": str(data_path),
-                "type": "chat_template",
-                "field_messages": "messages",
-                "message_field_role": "from",
-                "message_field_content": "value",
-            }
-        ],
         lora_target_modules=[
             "q_proj",
             "k_proj",
@@ -146,6 +135,34 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
             "up_proj",
             "down_proj",
         ],
+
+        save_steps=0,
+        save_strategy="no",
+        save_total_limit=0,
+        save_only_model=True,
+
+        datasets=[
+            {
+                "path": str(data_path),
+                "split": "train",
+                "type": "chat_template",
+                "field_messages": "messages",
+                "message_field_role": "from",
+                "message_field_content": "value",
+            },
+            *(
+                [{
+                    "path": str(data_path),
+                    "split": "validation",
+                    "type": "chat_template",
+                    "field_messages": "messages",
+                    "message_field_role": "from",
+                    "message_field_content": "value",
+                }]
+                if config.do_validation else []
+            )
+        ],
+
         use_wandb=True,
         wandb_project=os.getenv('WANDB_PROJECT'),
         wandb_entity=os.getenv('WANDB_ENTITY'),
