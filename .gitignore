@@ -57,11 +57,7 @@ htmlcov/
 # Project specific
 data/**
 !data/
-!data/input/
-!data/output/
 !data/.gitkeep
-!data/input/.gitkeep
-!data/output/.gitkeep
 
 configs/*
 !configs/.gitkeep
@@ -69,3 +65,4 @@ configs/*
 models/*
 
 llama-finetune.zip
+
