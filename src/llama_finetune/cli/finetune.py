@@ -81,6 +81,14 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
     # Configure HF environment
     configure_hf(config.model_name)
     get_token()
+    if config.push_to_hub:
+        model_name = os.path.basename(config.output_dir.rstrip("/"))
+        hub_model_id = f"{os.getenv('HF_ORG')}/{model_name}"
+        hub_strategy = "end"
+        logger.info("Will push adapter to the Hub with model ID: {}", hub_model_id)
+    else:
+        hub_model_id = None
+        hub_strategy = None
 
     # Configure W&B
     load_dotenv()
@@ -139,11 +147,13 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
             "down_proj",
         ],
         use_wandb=True,
-        wandb_project="llama-finetune",
-        wandb_entity="flsg2",
+        wandb_project=os.getenv('WANDB_PROJECT'),
+        wandb_entity=os.getenv('WANDB_ENTITY'),
         wandb_name=f"{os.path.splitext(os.path.basename(config_path.replace('configs/', '')))[0]}_{datetime.now().strftime('%Y%m%d_%H%M')}",
         wandb_watch="checkpoint",
         wandb_log_model="checkpoint",
+        hub_model_id=hub_model_id,
+        hub_strategy=hub_strategy,
     )
 
     # Add pad token only if model is a Llama
