@@ -84,7 +84,10 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
     if config.push_to_hub:
         model_name = os.path.basename(config.output_dir.rstrip("/"))
         hub_model_id = f"{os.getenv('HF_ORG')}/{model_name}"
-        hub_strategy = "end"
+        if config.checkpointing:
+            hub_strategy = "every_save"
+        else:
+            hub_strategy = "end"
         logger.info("Will push adapter to the Hub with model ID: {}", hub_model_id)
     else:
         hub_model_id = None
