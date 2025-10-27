@@ -36,6 +36,7 @@ class FinetuneConfig(BaseModel):
     flash_attention: bool = Field(False, description="Use flash attention if available")
 
     seed: int = Field(42, description="Random seed")
+    checkpointing: bool = Field(False, description="Whether to use epoch checkpointing during training")
     push_to_hub: bool = Field(False, description="Whether to push the adaptor to Hugging Face Hub after training")
     do_validation: bool = Field(False, description="Whether to run validation")
 

@@ -104,6 +104,20 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
             logger.error("Training data not found at: {}", data_path)
             raise
 
+    # Configure checkpointing strategy
+    if config.checkpointing:
+        logger.info("Checkpointing enabled: will save model at the end of each epoch.")
+        save_steps = None,
+        save_strategy = "epoch",
+        save_total_limit = config.epochs,
+        save_only_model = False,
+    else:
+        logger.info("Checkpointing disabled: will only save model at the end of training.")
+        save_steps = 0,
+        save_strategy = "no",
+        save_total_limit = 0,
+        save_only_model = True,
+
     logger.info("Starting finetuning job...")
 
     # Convert config to axolotl config
@@ -140,10 +154,10 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
             "down_proj",
         ],
 
-        save_steps=0,
-        save_strategy="no",
-        save_total_limit=0,
-        save_only_model=True,
+        save_steps=save_steps,
+        save_strategy=save_strategy,
+        save_total_limit=save_total_limit,
+        save_only_model=save_only_model,
 
         datasets=[
             {
