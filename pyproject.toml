@@ -1,5 +1,5 @@
 [project]
-name = "llama-finetune"
+name = "voice-finetune"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-finetune = "llama_finetune.cli.finetune:main"
+finetune = "voice_finetune.cli.finetune:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -1530,35 +1530,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/0e/72/a3add0e4eec4eb9e2569554f7c70f4a3c27712f40e3284d483e88094cc0e/langdetect-1.0.9.tar.gz", hash = "sha256:cbc1fef89f8d062739774bd51eda3da3274006b3661d199c2655f6b3f6d605a0", size = 981474, upload-time = "2021-05-07T07:54:13.562Z" }
 
 [[package]]
-name = "llama-finetune"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "axolotl" },
-    { name = "bitsandbytes", marker = "sys_platform == 'linux'" },
-    { name = "loguru" },
-    { name = "pydantic" },
-    { name = "wandb" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pre-commit" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "axolotl", specifier = ">=0.12.2" },
-    { name = "bitsandbytes", marker = "sys_platform == 'linux'" },
-    { name = "loguru", specifier = ">=0.7.3" },
-    { name = "pydantic", specifier = ">=2.10.6" },
-    { name = "wandb", specifier = ">=0.22.2" },
-]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pre-commit", specifier = ">=4.3.0" }]
-
-[[package]]
 name = "llvmlite"
 version = "0.45.1"
 source = { registry = "https://pypi.org/simple" }
@@ -4034,6 +4005,35 @@ sdist = { url = "https://files.pythonhosted.org/packages/a4/d5/b0ccd381d55c8f45d
 wheels = [
     { url = "https://files.pythonhosted.org/packages/27/73/d9a94da0e9d470a543c1b9d3ccbceb0f59455983088e727b8a1824ed90fb/virtualenv-20.35.3-py3-none-any.whl", hash = "sha256:63d106565078d8c8d0b206d48080f938a8b25361e19432d2c9db40d2899c810a", size = 5981061, upload-time = "2025-10-10T21:23:30.433Z" },
 ]
+
+[[package]]
+name = "voice-finetune"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "axolotl" },
+    { name = "bitsandbytes", marker = "sys_platform == 'linux'" },
+    { name = "loguru" },
+    { name = "pydantic" },
+    { name = "wandb" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pre-commit" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "axolotl", specifier = ">=0.12.2" },
+    { name = "bitsandbytes", marker = "sys_platform == 'linux'" },
+    { name = "loguru", specifier = ">=0.7.3" },
+    { name = "pydantic", specifier = ">=2.10.6" },
+    { name = "wandb", specifier = ">=0.22.2" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pre-commit", specifier = ">=4.3.0" }]
 
 [[package]]
 name = "wandb"
