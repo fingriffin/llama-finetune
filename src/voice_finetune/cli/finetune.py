@@ -4,9 +4,9 @@ import click
 from loguru import logger
 import wandb
 
-from llama_finetune.logging import setup_logging
-from llama_finetune.config import load_finetune_config
-from llama_finetune.hf import configure_hf, get_token
+from voice_finetune.logging import setup_logging
+from voice_finetune.config import load_finetune_config
+from voice_finetune.hf import configure_hf, get_token
 
 from axolotl.cli.config import load_cfg
 from axolotl.cli.preprocess import do_preprocess, PreprocessCliArgs
