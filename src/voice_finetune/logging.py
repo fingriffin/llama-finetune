@@ -1,15 +1,27 @@
-"""Logging configuration."""
+"""Logging configuration for style-bench."""
 
-from loguru import logger
 import sys
-from pathlib import Path
 
-def setup_logging(level: str = "INFO", log_file: str = None):
-    """Configure logging for style-bench."""
+from loguru import Logger, logger
+
+
+def setup_logging(level: str = "INFO", log_file: str | None = None) -> Logger:
+    """
+    Configure logging for style-bench.
+
+    :param level: Logging level (e.g., "DEBUG", "INFO", "WARNING", "ERROR").
+    :param log_file: Optional file path to save logs.
+    :return: Configured logger instance.
+    """
     logger.remove()
 
-    def format_record(record):
-        """Some added pazazz to the log output"""
+    def format_record(record: dict) -> str:
+        """
+        Format log records with icons based on severity level.
+
+        :param record: Log record.
+        :return: Formatted log string.
+        """
         level_icons = {
             "DEBUG": "🔍",
             "INFO": "📝",
@@ -23,6 +35,8 @@ def setup_logging(level: str = "INFO", log_file: str = None):
     logger.add(sys.stderr, level=level, format=format_record, colorize=True)
 
     if log_file:
+        from pathlib import Path
+
         Path(log_file).parent.mkdir(parents=True, exist_ok=True)
         logger.add(log_file, level=level)
 

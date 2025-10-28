@@ -34,4 +34,11 @@ repos:
     rev: 0.7.6
     hooks:
       - id: pydoclint
-        args: [ "--style", "sphinx", "--arg-type-hints-in-docstring=False", "--check-return-types=False"]
+        args:
+          - "--style=sphinx"
+          - "--arg-type-hints-in-docstring=False"
+          - "--check-return-types=False"
+          - "--skip-checking-short-docstrings=False"
+          - "--require-return-section-when-returning-nothing=True"
+          # (optional, explicit but default already)
+          - "--skip-checking-raises=False"

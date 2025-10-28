@@ -1,23 +1,23 @@
 """Finetune a model based on a given config file."""
 
+import os
+from datetime import datetime
+from pathlib import Path
+
 import click
-from loguru import logger
 import wandb
-
-from voice_finetune.logging import setup_logging
-from voice_finetune.config import load_finetune_config
-from voice_finetune.hf import configure_hf, get_token
-
 from axolotl.cli.config import load_cfg
-from axolotl.cli.preprocess import do_preprocess, PreprocessCliArgs
-from axolotl.utils.dict import DictDefault
+from axolotl.cli.preprocess import PreprocessCliArgs, do_preprocess
 from axolotl.common.datasets import load_datasets
 from axolotl.train import train
-
-from pathlib import Path
-import os
+from axolotl.utils.dict import DictDefault
 from dotenv import load_dotenv
-from datetime import datetime
+from loguru import logger
+
+from voice_finetune.config import load_finetune_config
+from voice_finetune.hf import configure_hf, get_token
+from voice_finetune.logging import setup_logging
+
 
 @click.command()
 @click.argument("config_path")
@@ -34,9 +34,46 @@ from datetime import datetime
 @click.option("--device-map", help="Override device map (e.g., 'auto', 'cpu', 'cuda')")
 @click.option("--bf16/--no-bf16", default=None, help="Override bf16 usage")
 @click.option("--fp16/--no-fp16", default=None, help="Override fp16 usage")
-@click.option("--load-in-8bit/--no-load-in-8bit", default=None, help="Override 8-bit loading")
-def main(config_path, log_level, log_file, model_name, train_data_path, output_dir, epochs, micro_batch_size, learning_rate, optimizer, seed, device_map, bf16, fp16, load_in_8bit):
-    """Run finetuning job based on the provided config file."""
+@click.option("--load-in-8bit/--no-load-in-8bit", default=None, help="Override 8b quant")
+def main(
+    config_path: str,
+    log_level: str,
+    log_file: str | None,
+    model_name: str,
+    train_data_path: str,
+    output_dir: str,
+    epochs: int,
+    micro_batch_size: int,
+    learning_rate: float,
+    optimizer: str,
+    seed: int,
+    device_map: str,
+    bf16: bool,
+    fp16: bool,
+    load_in_8bit: bool,
+) -> None:
+    """
+    Run finetuning job based on the provided config file.
+
+    :param config_path: Path to the config file.
+    :param log_level: Optional override for logging level.
+    :param log_file: Optional override for log file path.
+    :param model_name: Optional override for model name.
+    :param train_data_path: Optional override for training data path.
+    :param output_dir: Optional override for output directory.
+    :param epochs: Optional override for number of epochs.
+    :param micro_batch_size: Optional override for micro batch size.
+    :param learning_rate: Optional override for learning rate.
+    :param optimizer: Optional override for optimizer.
+    :param seed: Optional override for random seed.
+    :param device_map: Optional override for device map.
+    :param bf16: Optional override for bf16 usage.
+    :param fp16: Optional override for fp16 usage.
+    :param load_in_8bit: Optional override for 8-bit loading.
+    :return: None
+
+    :raises Exception: If loading the finetune config fails.
+    """
     # Setup logging
     setup_logging(level=log_level, log_file=log_file)
 
@@ -98,13 +135,15 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
     wandb.login(key=os.getenv("WANDB_API_KEY"))
 
     # Resolve data path
-    if str(config.train_data_path).startswith(os.getenv('HF_ORG') + '/'):
-        data_path = config.train_data_path
-        logger.info(f"Detected Hugging Face dataset: {config.train_data_path}")
+    hf_org = os.getenv("HF_ORG")
+    if hf_org:
+        if str(config.train_data_path).startswith(hf_org + '/'):
+            data_path = config.train_data_path
+            logger.info(f"Detected Hugging Face dataset: {str(config.train_data_path)}")
     else:
-        data_path = Path(config.train_data_path).expanduser().resolve()
-        if not data_path.exists():
-            logger.error("Training data not found at: {}", data_path)
+        data_path = Path(config.train_data_path).expanduser().resolve() # type: ignore[assignment]
+        if not data_path.exists(): # type: ignore[attr-defined]
+            logger.error("Training data not found at: {}", str(data_path))
             raise
 
     # Configure checkpointing strategy
@@ -114,13 +153,17 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
         save_total_limit = config.epochs
         save_only_model = False
     else:
-        logger.info("Checkpointing disabled: will only save model at the end of training.")
+        logger.info("Checkpointing disabled: will only save final model.")
         save_steps = 0
         save_strategy = "no"
         save_total_limit = 0
         save_only_model = True
 
     logger.info("Starting finetuning job...")
+
+    # Get current timestamp for W&B run name
+    now = datetime.now().strftime('%Y%m%d_%H%M')
+    experiment_base_name = os.path.basename(config_path.replace('configs/', ''))
 
     # Convert config to axolotl config
     axolotl_cfg_raw = DictDefault(
@@ -190,7 +233,7 @@ def main(config_path, log_level, log_file, model_name, train_data_path, output_d
         use_wandb=True,
         wandb_project=os.getenv('WANDB_PROJECT'),
         wandb_entity=os.getenv('WANDB_ENTITY'),
-        wandb_name=f"{os.path.splitext(os.path.basename(config_path.replace('configs/', '')))[0]}_{datetime.now().strftime('%Y%m%d_%H%M')}",
+        wandb_name=f"{os.path.splitext(experiment_base_name)[0]}_{now}",
         wandb_watch="checkpoint",
         wandb_log_model="checkpoint",
         hub_model_id=hub_model_id,
