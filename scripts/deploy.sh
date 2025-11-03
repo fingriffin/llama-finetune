@@ -9,7 +9,23 @@ rm -f "$ZIP_NAME" 2>/dev/null || true
 
 echo "Zipping project (excluding large or cached folders)..."
 zip -r "$ZIP_NAME" . \
-  -x ".venv/*" "model-out/*" "models/*" ".idea/*" "__pycache__/*" "*.pyc" "*.pyo" "*.log" ".DS_Store" "uv.lock"
+  -x ".git/*" \
+     ".idea/*" \
+     ".venv/*" \
+     "__pycache__/*" \
+     "*.pyc" \
+     "*.pyo" \
+     "*.log" \
+     ".DS_Store" \
+     "uv.lock" \
+     "model-out/*" \
+     "models/*" \
+     ".mypy_cache/*" \
+     ".ruff_cache/*" \
+     ".pytest_cache/*" \
+     ".env" \
+     ".env.*" \
+     ".secrets.baseline"
 
 echo "Uploading $ZIP_NAME to RunPod..."
 runpodctl send "$ZIP_NAME"
