@@ -12,7 +12,9 @@ from axolotl.common.datasets import load_datasets
 from axolotl.train import train
 from axolotl.utils.dict import DictDefault
 from dotenv import load_dotenv
+from huggingface_hub import HfApi, snapshot_download
 from loguru import logger
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from voice_finetune.config import load_finetune_config
 from voice_finetune.hf import configure_hf, get_token
@@ -257,3 +259,54 @@ def main(
 
     # Training
     model, tokenizer, trainer = train(cfg=axolotl_cfg, dataset_meta=train_dataset)
+
+    # Merge and push LoRA adapters if specified
+    if config.do_merge and config.push_to_hub:
+        logger.info("Downloading adapter repo from HF: {}", hub_model_id)
+        repo_path = snapshot_download(repo_id=hub_model_id)
+        adapter_path = os.path.join(repo_path, config.adapter_subfolder)
+
+        tokenizer = AutoTokenizer.from_pretrained(config.model_name, use_fast=True)
+
+        if tokenizer.pad_token is None or tokenizer.pad_token != "<PAD>":
+            tokenizer.add_special_tokens({"pad_token": "<PAD>"})
+
+        logger.info("Loading base model from cache: {}", config.model_name)
+        base_model = AutoModelForCausalLM.from_pretrained(
+            config.model_name,
+            torch_dtype="bfloat16",
+            device_map={"": 0},  # no auto to avoid meta tensors
+        )
+
+        # Resize embeddings to match tokenizer
+        new_vocab_size = len(tokenizer)
+        current_vocab_size = base_model.get_input_embeddings().weight.shape[0]
+        if current_vocab_size != new_vocab_size:
+            logger.info(
+                "Resizing token embeddings from {} to {} (with mean_resizing=False)",
+                current_vocab_size,
+                new_vocab_size,
+            )
+            base_model.resize_token_embeddings(new_vocab_size, mean_resizing=False)
+            base_model.config.vocab_size = new_vocab_size
+
+        # Get HF local cache path for the base model
+        hf_home = os.getenv("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+        model_dir = os.path.join(hf_home, config.model_name.replace("/", "_"))
+
+        logger.info("Saving merged model to {}", model_dir)
+        model.save_pretrained(model_dir, safe_serialization=True)
+        tokenizer.save_pretrained(model_dir)
+
+        logger.info("Pushing merged model to Hugging Face Hub...")
+        merged_repo = hub_model_id + "-Merged" # type: ignore[operator]
+
+        api = HfApi()
+        api.create_repo(merged_repo, repo_type="model", exist_ok=True, private=False)
+        api.upload_folder(
+            folder_path=model_dir,
+            repo_id=merged_repo,
+            repo_type="model",
+        )
+
+        logger.success("Successfully pushed merged model to {}", merged_repo)
