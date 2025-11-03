@@ -2,7 +2,8 @@
 
 import sys
 
-from loguru import Logger, logger
+from loguru import logger
+from loguru._logger import Logger
 
 
 def setup_logging(level: str = "INFO", log_file: str | None = None) -> Logger:

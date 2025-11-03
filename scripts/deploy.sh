@@ -23,8 +23,6 @@ zip -r "$ZIP_NAME" . \
      ".mypy_cache/*" \
      ".ruff_cache/*" \
      ".pytest_cache/*" \
-     ".env" \
-     ".env.*" \
      ".secrets.baseline"
 
 echo "Uploading $ZIP_NAME to RunPod..."
