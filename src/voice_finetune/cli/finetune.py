@@ -14,7 +14,7 @@ from axolotl.utils.dict import DictDefault
 from dotenv import load_dotenv
 from huggingface_hub import HfApi, snapshot_download
 from loguru import logger
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 from voice_finetune.config import load_finetune_config
 from voice_finetune.hf import configure_hf, get_token
@@ -271,11 +271,30 @@ def main(
         if tokenizer.pad_token is None or tokenizer.pad_token != "<PAD>":
             tokenizer.add_special_tokens({"pad_token": "<PAD>"})
 
+        bnb_kwargs = {} # type: ignore[var-annotated]
+        if config.load_in_4bit:
+            bnb_kwargs.update(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype="bfloat16",
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+            )
+        elif config.load_in_8bit:
+            bnb_kwargs["load_in_8bit"] = True
+
+        bnb_config = BitsAndBytesConfig(**bnb_kwargs) if bnb_kwargs else None
+
+        from_pretrained_kwargs = {
+            "torch_dtype": "bfloat16",
+            "device_map": {"": 0},
+        }
+        if bnb_config is not None:
+            from_pretrained_kwargs["quantization_config"] = bnb_config
+
         logger.info("Loading base model from cache: {}", config.model_name)
         base_model = AutoModelForCausalLM.from_pretrained(
             config.model_name,
-            torch_dtype="bfloat16",
-            device_map={"": 0},  # no auto to avoid meta tensors
+            **from_pretrained_kwargs,
         )
 
         # Resize embeddings to match tokenizer
