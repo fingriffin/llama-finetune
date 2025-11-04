@@ -41,8 +41,10 @@ class FinetuneConfig(BaseModel):
 
     seed: int = Field(42, description="Random seed")
     checkpointing: bool = Field(False, description="Whether to use checkpointing")
-    push_to_hub: bool = Field(False, description="Push to HF Hub after training")
+    push_to_hub: bool = Field(True, description="Push to HF Hub after training")
     do_validation: bool = Field(False, description="Whether to run validation")
+    do_merge: bool = Field(True, description="Whether to merge and push LoRA adapters")
+    adapter_subfolder: str = Field("", description="Adapter subfolder in the model repo")
 
     @field_validator("output_dir")
     def create_output_path(cls, v: str) -> str:
