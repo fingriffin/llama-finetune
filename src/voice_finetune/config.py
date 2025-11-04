@@ -11,6 +11,8 @@ class FinetuneConfig(BaseModel):
 
     model_name: str = Field(..., description="Name of the model to use")
     adapter: str = Field(..., description="Name of the adpter model to use")
+    train_data_path: str = Field(..., description="Path to training data")
+    output_dir: str = Field(..., description="Directory to save checkpoints and outputs")
 
     load_in_8bit: bool = Field(False, description="Load the model from 8bit")
     load_in_4bit: bool = Field(False, description="Load the model from 4bit")
@@ -21,12 +23,7 @@ class FinetuneConfig(BaseModel):
     optimizer: str = Field("paged_adamw_32bit", description="Optimizer to use")
     gpus: int = Field(1, description="Number of GPUs to use")
 
-    train_data_path: str = Field(..., description="Path to training data")
-    val_data_path: str | None = Field(None, description="Path to validation data")
-
-    output_dir: str = Field(..., description="Directory to save checkpoints and outputs")
     epochs: int = Field(3, description="Number of training epochs")
-
     micro_batch_size: int = Field(2, description="Batch size per device")
     gradient_accumulation_steps: int = Field(4, description="No. of accumulation steps")
     learning_rate: float = Field(2e-4, description="Learning rate")

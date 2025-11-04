@@ -1,0 +1,36 @@
+# Example configuration file with default values
+# Empty fields are required fields
+
+model_name: # Name of the HF base model to use
+adapter: # Name of the adapter to use (e.g. lora)
+train_data_path: # Local path to training data or HF dataset name
+output_dir: # Directory to save model locally, also used as repo name when pushing to HF Hub
+
+load_in_8bit: false # Whether to load the model from 8bit
+load_in_4bit: false # Whether to oad the model from 4bit
+bf16: false # Whether to load the model from BF16
+fp16: true # Whether to load the model from FP16
+gradient_checkpointing: true # Whether to use gradient checkpointing
+
+optimizer: paged_adamw_32bit # Optimizer to use
+gpus: 1 # Number of GPUs to use
+
+epochs: 3 # Number of training epochs
+micro_batch_size: 2 # Micro batch size
+gradient_accumulation_steps: 4 # Gradient accumulation steps
+learning_rate: 2e-4 # Learning rate
+
+lora_r: 8 # LoRA rank
+lora_alpha: 16 # LoRA alpha
+lora_dropout: 0.05 # LoRA dropout
+
+sequence_len: 1024 # Max sequence length
+device_map: auto # Device map for model loading
+flash_attention: false # Whether to use flash attention
+
+seed: 42 # Random seed for reproducibility
+checkpointing: false # Whether to save checkpoints during training
+push_to_hub: true # Whether to push the model (and checkpoints if provided) to HF
+do_validation: false # Whether to run validation during training
+do_merge: true # Whether to merge the adapter weights into the base model after training and push to HF
+adapter_subfolder: # Adapter subfolder inside the adapter repo, if any (e.g. checkpoint-13)
