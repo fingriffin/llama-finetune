@@ -11,8 +11,8 @@ RUN apt-get update && apt-get install -y \
     netcat-openbsd \
  && rm -rf /var/lib/apt/lists/*
 
-# Set up SSH server
-RUN mkdir /var/run/sshd
+# Set up SSH server (ignore if it already exists)
+RUN mkdir -p /var/run/sshd
 
 # Install uv and sync dependencies
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
@@ -29,5 +29,5 @@ EXPOSE 22/tcp
 ENV PATH="/root/.local/bin:/app/.venv/bin:$PATH"
 ENV ZENML_CONFIG_PATH="/runpod-volume/.config/zenml"
 
-# Start SSH service and keep container running
-CMD service ssh start && sleep infinity
+# Start SSH service and keep container alive
+CMD ["bash", "-c", "service ssh start && sleep infinity"]
