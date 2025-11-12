@@ -1,16 +1,13 @@
-FROM python:3.11-slim
+FROM runpod/base:0.7.0-ubuntu2404
 
 WORKDIR /app
 COPY . .
 
-# Install system tools: curl (for uv), SSH client, and netcat for tunnel checks
 RUN apt-get update && apt-get install -y \
     curl \
-    openssh-client \
     netcat-openbsd \
  && rm -rf /var/lib/apt/lists/*
 
-# Install uv and sync dependencies
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
     export PATH="/root/.local/bin:$PATH" && \
     uv sync --frozen
