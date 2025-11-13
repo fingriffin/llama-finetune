@@ -16,7 +16,11 @@ from huggingface_hub import HfApi, snapshot_download
 from loguru import logger
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
-from voice_finetune.config import load_finetune_config
+from voice_finetune.config import (
+    is_wandb_artifact,
+    load_config_from_wandb_artifact,
+    load_finetune_config,
+)
 from voice_finetune.hf import configure_hf, get_token
 from voice_finetune.logging import setup_logging
 
@@ -79,10 +83,18 @@ def main(
     # Setup logging
     setup_logging(level=log_level, log_file=log_file)
 
-    # Load config
+    # Detect local vs W&B artifact
+    if is_wandb_artifact(config_path):
+        logger.info("Detected W&B artifact config: {}", config_path)
+        config_file = load_config_from_wandb_artifact(config_path)
+        logger.info("Downloaded config to {}", str(config_file))
+    else:
+        config_file = Path(config_path).expanduser()
+
+    # Now load using your existing function
     try:
-        logger.info("Loading config from {}", config_path)
-        config = load_finetune_config(config_path)
+        logger.info("Loading config from {}", str(config_file))
+        config = load_finetune_config(str(config_file))
         logger.success("Config loaded successfully!")
         print("Current configuration:")
         print(config.model_dump_json(indent=2))
