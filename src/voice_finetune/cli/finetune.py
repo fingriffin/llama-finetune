@@ -41,6 +41,7 @@ from voice_finetune.logging import setup_logging
 @click.option("--bf16/--no-bf16", default=None, help="Override bf16 usage")
 @click.option("--fp16/--no-fp16", default=None, help="Override fp16 usage")
 @click.option("--load-in-8bit/--no-load-in-8bit", default=None, help="Override 8b quant")
+@click.option("--wandb-run-id", help="Attach to existing wandb run ID")
 def main(
     config_path: str,
     log_level: str,
@@ -57,6 +58,7 @@ def main(
     bf16: bool,
     fp16: bool,
     load_in_8bit: bool,
+    wandb_run_id: str | None,
 ) -> None:
     """
     Run finetuning job based on the provided config file.
@@ -76,6 +78,7 @@ def main(
     :param bf16: Optional override for bf16 usage.
     :param fp16: Optional override for fp16 usage.
     :param load_in_8bit: Optional override for 8-bit loading.
+    :param wandb_run_id: Option to attach to an existing wandb run ID.
     :return: None
 
     :raises Exception: If loading the finetune config fails.
@@ -247,7 +250,12 @@ def main(
         use_wandb=True,
         wandb_project=os.getenv('WANDB_PROJECT'),
         wandb_entity=os.getenv('WANDB_ENTITY'),
-        wandb_name=f"{os.path.splitext(experiment_base_name)[0]}_{now}",
+        wandb_name=(
+            f"{os.path.splitext(experiment_base_name)[0]}_{now}"
+            if wandb_run_id is None
+            else None
+        ),
+        wandb_run_id=wandb_run_id,
         wandb_watch="checkpoint",
         wandb_log_model="checkpoint",
         hub_model_id=hub_model_id,
