@@ -150,6 +150,9 @@ def main(
     # Configure W&B
     load_dotenv()
     wandb.login(key=os.getenv("WANDB_API_KEY"))
+    if wandb_run_id:
+        os.environ["WANDB_RUN_ID"] = wandb_run_id
+        os.environ["WANDB_RESUME"] = "allow"
 
     # Resolve data path
     hf_org = os.getenv("HF_ORG")
