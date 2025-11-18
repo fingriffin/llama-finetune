@@ -147,12 +147,21 @@ def main(
         hub_model_id = None
         hub_strategy = None
 
-    # Configure W&B
+    # Configure W&B run
     load_dotenv()
     wandb.login(key=os.getenv("WANDB_API_KEY"))
     if wandb_run_id:
-        os.environ["WANDB_RUN_ID"] = wandb_run_id
-        os.environ["WANDB_RESUME"] = "allow"
+        run = wandb.init(
+            project=os.getenv("WANDB_PROJECT"),
+            entity=os.getenv("WANDB_ENTITY"),
+            id=wandb_run_id,
+            resume="must",
+        )
+    else:
+        run = wandb.init(
+            project=os.getenv("WANDB_PROJECT"),
+            entity=os.getenv("WANDB_ENTITY"),
+        )
 
     # Resolve data path
     hf_org = os.getenv("HF_ORG")
@@ -253,12 +262,6 @@ def main(
         use_wandb=True,
         wandb_project=os.getenv('WANDB_PROJECT'),
         wandb_entity=os.getenv('WANDB_ENTITY'),
-        wandb_name=(
-            f"{os.path.splitext(experiment_base_name)[0]}_{now}"
-            if wandb_run_id is None
-            else None
-        ),
-        wandb_run_id=wandb_run_id,
         wandb_watch="checkpoint",
         wandb_log_model="checkpoint",
         hub_model_id=hub_model_id,
