@@ -14,7 +14,8 @@ from axolotl.utils.dict import DictDefault
 from dotenv import load_dotenv
 from huggingface_hub import HfApi, snapshot_download
 from loguru import logger
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from peft import PeftModel
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from voice_finetune.config import (
     is_wandb_artifact,
@@ -292,59 +293,50 @@ def main(
         repo_path = snapshot_download(repo_id=hub_model_id)
         adapter_path = os.path.join(repo_path, config.adapter_subfolder)
 
+        # Load tokenizer
         tokenizer = AutoTokenizer.from_pretrained(config.model_name, use_fast=True)
-
         if tokenizer.pad_token is None or tokenizer.pad_token != "<PAD>":
             tokenizer.add_special_tokens({"pad_token": "<PAD>"})
-
-        bnb_kwargs = {} # type: ignore[var-annotated]
-        if config.load_in_4bit:
-            bnb_kwargs.update(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype="bfloat16",
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4",
-            )
-        elif config.load_in_8bit:
-            bnb_kwargs["load_in_8bit"] = True
-
-        bnb_config = BitsAndBytesConfig(**bnb_kwargs) if bnb_kwargs else None
 
         from_pretrained_kwargs = {
             "torch_dtype": "bfloat16",
             "device_map": {"": 0},
         }
-        if bnb_config is not None:
-            from_pretrained_kwargs["quantization_config"] = bnb_config
 
-        logger.info("Loading base model from cache: {}", config.model_name)
+        logger.info("Loading base model in full precision: {}", config.model_name)
         base_model = AutoModelForCausalLM.from_pretrained(
             config.model_name,
             **from_pretrained_kwargs,
         )
 
-        # Resize embeddings to match tokenizer
         new_vocab_size = len(tokenizer)
         current_vocab_size = base_model.get_input_embeddings().weight.shape[0]
-        if current_vocab_size != new_vocab_size:
+        if new_vocab_size != current_vocab_size:
             logger.info(
-                "Resizing token embeddings from {} to {} (with mean_resizing=False)",
+                "Resizing token embeddings from {} to {}",
                 current_vocab_size,
                 new_vocab_size,
             )
             base_model.resize_token_embeddings(new_vocab_size, mean_resizing=False)
             base_model.config.vocab_size = new_vocab_size
 
-        # Get HF local cache path for the base model
-        hf_home = os.getenv("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
-        model_dir = os.path.join(hf_home, config.model_name.replace("/", "_"))
+        logger.info("Loading LoRA adapter from {}", adapter_path)
+        peft_model = PeftModel.from_pretrained(base_model, adapter_path)
+
+        logger.info("Merging LoRA adapter into base model weights...")
+        merged_model = peft_model.merge_and_unload()
+
+        # Save merged model into local directory
+        model_dir = os.path.join(config.output_dir, "merged")
+        os.makedirs(model_dir, exist_ok=True)
 
         logger.info("Saving merged model to {}", model_dir)
-        model.save_pretrained(model_dir, safe_serialization=True)
+        merged_model.save_pretrained(model_dir, safe_serialization=True)
         tokenizer.save_pretrained(model_dir)
 
-        logger.info("Pushing merged model to Hugging Face Hub...")
-        merged_repo = hub_model_id + "-Merged" # type: ignore[operator]
+        # Push merged model to HF hub
+        merged_repo = f"{hub_model_id}-Merged"
+        logger.info("Pushing merged model to HF Hub at {}", merged_repo)
 
         api = HfApi()
         api.create_repo(merged_repo, repo_type="model", exist_ok=True, private=False)
@@ -355,3 +347,4 @@ def main(
         )
 
         logger.success("Successfully pushed merged model to {}", merged_repo)
+
