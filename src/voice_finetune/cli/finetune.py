@@ -249,9 +249,9 @@ def main(
             }
         ],
 
-        test_datasets=[
-            *(
-                [{
+        **(
+            {
+                "test_datasets": [{
                     "path": str(data_path),
                     "split": "validation",
                     "type": "chat_template",
@@ -259,9 +259,10 @@ def main(
                     "message_field_role": "from",
                     "message_field_content": "value",
                 }]
-                if config.do_validation else []
-            )
-        ],
+            }
+            if config.do_validation
+            else {}
+        ),
         eval_steps = 1,
 
         use_wandb=True,
