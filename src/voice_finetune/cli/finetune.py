@@ -229,6 +229,10 @@ def main(
             "down_proj",
         ],
 
+        special_tokens={
+            "pad_token": "<PAD>",
+        },
+
         save_steps=locals().get('save_steps', 0),
         save_strategy=save_strategy,
         save_total_limit=save_total_limit,
@@ -268,10 +272,6 @@ def main(
         hub_model_id=hub_model_id,
         hub_strategy=hub_strategy,
     )
-
-    # Add pad token only if model is a Llama
-    if "llama" in config.model_name.lower():
-        axolotl_cfg_raw.setdefault("special_tokens", {})["pad_token"] = "<PAD>"
 
     axolotl_cfg = load_cfg(axolotl_cfg_raw)
 
