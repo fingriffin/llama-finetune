@@ -195,6 +195,20 @@ def main(
     now = datetime.now().strftime('%Y%m%d_%H%M')
     experiment_base_name = os.path.basename(config_path.replace('configs/', ''))
 
+    # Get tokenizer, add pad token and save locally
+    tokenizer = AutoTokenizer.from_pretrained(
+        config.model_name,
+        trust_remote_code=True,
+        use_fast=True,
+    )
+
+    if tokenizer.pad_token is None:
+        tokenizer.add_special_tokens({"pad_token": "<PAD>"})
+
+    tokenizer_dir = os.path.join(config.output_dir, "tokenizer")
+    os.makedirs(tokenizer_dir, exist_ok=True)
+    tokenizer.save_pretrained(tokenizer_dir)
+
     # Convert config to axolotl config
     axolotl_cfg_raw = DictDefault(
         base_model=config.model_name,
@@ -229,6 +243,11 @@ def main(
             "down_proj",
         ],
 
+        tokenizer_config=tokenizer_dir,
+        special_tokens={
+            "pad_token": "<PAD>",
+        },
+
         save_steps=locals().get('save_steps', 0),
         save_strategy=save_strategy,
         save_total_limit=save_total_limit,
@@ -245,9 +264,9 @@ def main(
             }
         ],
 
-        test_datasets=[
-            *(
-                [{
+        **(
+            {
+                "test_datasets": [{
                     "path": str(data_path),
                     "split": "validation",
                     "type": "chat_template",
@@ -255,9 +274,10 @@ def main(
                     "message_field_role": "from",
                     "message_field_content": "value",
                 }]
-                if config.do_validation else []
-            )
-        ],
+            }
+            if config.do_validation
+            else {}
+        ),
         eval_steps = 1,
 
         use_wandb=True,
@@ -268,10 +288,6 @@ def main(
         hub_model_id=hub_model_id,
         hub_strategy=hub_strategy,
     )
-
-    # Add pad token only if model is a Llama
-    if "llama" in config.model_name.lower():
-        axolotl_cfg_raw.setdefault("special_tokens", {})["pad_token"] = "<PAD>"
 
     axolotl_cfg = load_cfg(axolotl_cfg_raw)
 
@@ -292,11 +308,6 @@ def main(
         logger.info("Downloading adapter repo from HF: {}", hub_model_id)
         repo_path = snapshot_download(repo_id=hub_model_id)
         adapter_path = os.path.join(repo_path, config.adapter_subfolder)
-
-        # Load tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(config.model_name, use_fast=True)
-        if tokenizer.pad_token is None or tokenizer.pad_token != "<PAD>":
-            tokenizer.add_special_tokens({"pad_token": "<PAD>"})
 
         from_pretrained_kwargs = {
             "torch_dtype": "bfloat16",
