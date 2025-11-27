@@ -2350,6 +2350,19 @@ wheels = [
 ]
 
 [[package]]
+name = "omegaconf"
+version = "2.0.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyyaml" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/87/d4/ef79d003e6c471ba95fdcddd58f67532d9c39b5fcf420aea199f3cc164e1/omegaconf-2.0.6.tar.gz", hash = "sha256:92ca535a788d21651bf4c2eaf5c1ca4c7a8003b2dab4a87cbb09109784268806", size = 83046, upload-time = "2021-01-19T22:10:54.523Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d0/eb/9d63ce09dd8aa85767c65668d5414958ea29648a0eec80a4a7d311ec2684/omegaconf-2.0.6-py3-none-any.whl", hash = "sha256:9e349fd76819b95b47aa628edea1ff83fed5b25108608abdd6c7fdca188e302a", size = 36834, upload-time = "2021-01-19T22:10:53.31Z" },
+]
+
+[[package]]
 name = "optimum"
 version = "1.16.2"
 source = { registry = "https://pypi.org/simple" }
@@ -4117,6 +4130,7 @@ dependencies = [
     { name = "axolotl" },
     { name = "bitsandbytes", marker = "sys_platform == 'linux'" },
     { name = "loguru" },
+    { name = "omegaconf" },
     { name = "pydantic" },
     { name = "wandb" },
 ]
@@ -4137,6 +4151,7 @@ requires-dist = [
     { name = "axolotl", specifier = ">=0.12.2" },
     { name = "bitsandbytes", marker = "sys_platform == 'linux'" },
     { name = "loguru", specifier = ">=0.7.3" },
+    { name = "omegaconf", specifier = ">=2.0.6" },
     { name = "pydantic", specifier = ">=2.10.6" },
     { name = "wandb", specifier = ">=0.22.2" },
 ]

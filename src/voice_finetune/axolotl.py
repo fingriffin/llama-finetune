@@ -3,12 +3,16 @@
 import os
 import subprocess
 import tempfile
+from enum import Enum
 from pathlib import Path
+from typing import Any
 
+import torch
 import yaml
 from axolotl.cli.config import load_cfg
 from axolotl.utils.dict import DictDefault
 from loguru import logger
+from omegaconf import DictConfig, ListConfig
 from transformers import AutoTokenizer
 
 from voice_finetune.config import (
@@ -20,13 +24,31 @@ from voice_finetune.config import (
 from voice_finetune.hf import configure_hf, get_token
 
 
+def to_plain(obj: Any) -> Any:
+    """Convert Axolotl / OmegaConf objects into plain YAML-serialisable Python types."""
+    if isinstance(obj, Enum):
+        return obj.value
+    if isinstance(obj, torch.dtype):
+        return str(obj).replace("torch.", "")
+    if isinstance(obj, DictConfig):
+        return {k: to_plain(v) for k, v in obj.items()}
+    if isinstance(obj, ListConfig):
+        return [to_plain(v) for v in obj]
+    if isinstance(obj, DictDefault) or isinstance(obj, dict):
+        return {k: to_plain(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [to_plain(v) for v in obj]
+    return obj
+
+
 class Finetuner:
     """Wrapper for Axolotl CLI engine."""
 
-    def __init__(self,
-                 config_path: str,
-                 wandb_run_id: str | None = None
-                 ) -> None:
+    def __init__(
+        self,
+        config_path: str,
+        wandb_run_id: str | None = None
+    ) -> None:
         """
         Initialise the Finetuner with the given configuration.
 
@@ -51,7 +73,6 @@ class Finetuner:
         :param preprocess: Whether to preprocess the data.
         :return: None
         """
-        # TODO: Route to wandb run
         if self.axolotl_config_path:
             if preprocess:
                 subprocess.run(
@@ -69,7 +90,6 @@ class Finetuner:
 
         :return: None
         """
-        # Detect local vs wandb artifact
         if is_wandb_artifact(self.config_path):
             logger.info("Detected wandb artifact: {}", self.config_path)
             config_file = load_config_from_wandb_artifact(self.config_path)
@@ -77,7 +97,6 @@ class Finetuner:
         else:
             config_file = Path(self.config_path).expanduser()
 
-        # Load config
         try:
             logger.info("Loading config from {}", str(config_file))
             self.config = load_finetune_config(str(config_file))
@@ -89,9 +108,9 @@ class Finetuner:
             logger.error("Failed to load config: {}", e)
             raise
 
-        # Configure HF environment
         configure_hf(self.config.model_name)
         get_token()
+
         if self.config.push_to_hub:
             model_name = os.path.basename(self.config.output_dir.rstrip("/"))
             hub_model_id = f"{os.getenv('HF_ORG')}/{model_name}"
@@ -104,7 +123,6 @@ class Finetuner:
             hub_model_id = None
             hub_strategy = None
 
-        # Resolve data path
         hf_org = os.getenv("HF_ORG")
         if hf_org:
             if str(self.config.train_data_path).startswith(hf_org + '/'):
@@ -121,7 +139,6 @@ class Finetuner:
                 )
                 raise
 
-        # Configure checkpointing strategy
         if self.config.checkpointing:
             logger.info(
                 "Checkpointing enabled: will save model at the end of each epoch."
@@ -136,8 +153,6 @@ class Finetuner:
             save_total_limit = 0
             save_only_model = True
 
-        # Prepare tokenizer
-        # Get tokenizer, add pad token and save locally
         tokenizer = AutoTokenizer.from_pretrained(
             self.config.model_name,
             trust_remote_code=True,
@@ -149,7 +164,6 @@ class Finetuner:
         os.makedirs(tokenizer_dir, exist_ok=True)
         tokenizer.save_pretrained(tokenizer_dir)
 
-        # Prepare axolotl config
         axolotl_cfg_raw = DictDefault(
             base_model=self.config.model_name,
             seed=self.config.seed,
@@ -237,6 +251,11 @@ class Finetuner:
 
         :return: None
         """
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".yaml") as f:
-            yaml.safe_dump(self.axolotl_config, f)
+        if self.axolotl_config is None:
+            raise RuntimeError("Axolotl config has not been prepared.")
+
+        plain_cfg = to_plain(self.axolotl_config)
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".yaml", mode="w") as f:
+            yaml.safe_dump(plain_cfg, f, sort_keys=False)
             self.axolotl_config_path = f.name
