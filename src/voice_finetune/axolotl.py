@@ -62,6 +62,7 @@ class Finetuner:
         self.config: FinetuneConfig | None = None
         self.axolotl_config: DictDefault | None = None
         self.axolotl_config_path: str | None = None
+        self._axolotl_whitelist_keys: set[str] | None = None
 
         self._prepare_configs()
         self._save_axolotl_config()
@@ -243,6 +244,7 @@ class Finetuner:
             hub_strategy=hub_strategy,
         )
 
+        self._axolotl_whitelist_keys = set(axolotl_cfg_raw.keys())
         self.axolotl_config = load_cfg(axolotl_cfg_raw)
 
     def _save_axolotl_config(self) -> None:
@@ -256,6 +258,15 @@ class Finetuner:
 
         plain_cfg = to_plain(self.axolotl_config)
 
+        if self._axolotl_whitelist_keys is not None:
+            filtered_cfg = {
+                key: plain_cfg[key]
+                for key in self._axolotl_whitelist_keys
+                if key in plain_cfg
+            }
+        else:
+            filtered_cfg = plain_cfg
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=".yaml", mode="w") as f:
-            yaml.safe_dump(plain_cfg, f, sort_keys=False)
+            yaml.safe_dump(filtered_cfg, f, sort_keys=False)
             self.axolotl_config_path = f.name
