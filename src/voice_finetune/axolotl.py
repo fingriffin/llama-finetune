@@ -73,16 +73,28 @@ class Finetuner:
         self._save_axolotl_config()
 
     def train(self) -> None:
-        """
-        Start the finetuning process using Axolotl CLI.
+        """Start the finetuning process using Axolotl CLI."""
+        if not self.axolotl_config_path:
+            raise ValueError("axolotl_config_path must be set before training.")
 
-        :return: None
-        """
-        if self.axolotl_config_path:
-            subprocess.run(
-                ["axolotl", "train", self.axolotl_config_path],
-                check=True
-            )
+        env = os.environ.copy()
+
+        # Inject wandb variables only if resuming a run
+        if self.wandb_run_id:
+            env["WANDB_RESUME"] = "must"
+            env["WANDB_RUN_ID"] = self.wandb_run_id
+
+            if "WANDB_PROJECT" in os.environ:
+                env["WANDB_PROJECT"] = os.environ["WANDB_PROJECT"]
+
+            if "WANDB_ENTITY" in os.environ:
+                env["WANDB_ENTITY"] = os.environ["WANDB_ENTITY"]
+
+        subprocess.run(
+            ["axolotl", "train", self.axolotl_config_path],
+            check=True,
+            env=env,
+        )
 
     def merge_and_push(self) -> None:
         """
