@@ -47,4 +47,4 @@ def clean_wandb_run(wandb_run_id: str) -> None:
             continue
 
         logger.info(f"Deleting artifact: {artifact.name} (type={artifact.type})")
-        artifact.delete()
+        artifact.delete(delete_aliases=True)
