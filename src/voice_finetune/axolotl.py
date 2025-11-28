@@ -11,9 +11,11 @@ import torch
 import yaml
 from axolotl.cli.config import load_cfg
 from axolotl.utils.dict import DictDefault
+from huggingface_hub import HfApi, snapshot_download
 from loguru import logger
 from omegaconf import DictConfig, ListConfig
-from transformers import AutoTokenizer
+from peft import PeftModel
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from voice_finetune.config import (
     FinetuneConfig,
@@ -58,6 +60,9 @@ class Finetuner:
         """
         self.config_path: str = config_path
         self.wandb_run_id: str | None = wandb_run_id
+        self.hub_model_id: str | None = None
+
+        self.tokenizer: AutoTokenizer | None = None
 
         self.config: FinetuneConfig | None = None
         self.axolotl_config: DictDefault | None = None
@@ -78,6 +83,71 @@ class Finetuner:
                 ["axolotl", "train", self.axolotl_config_path],
                 check=True
             )
+
+    def merge_and_push(self) -> None:
+        """
+        Merge the adapter and push to HF hub.
+
+        :return: None
+        """
+        if self.config:
+
+            logger.info("Downloading adapter repo from HF: {}", self.hub_model_id)
+            repo_path = snapshot_download(repo_id=self.hub_model_id)
+            adapter_path = os.path.join(repo_path, self.config.adapter_subfolder)
+
+            from_pretrained_kwargs = {
+                "torch_dtype": "bfloat16",
+                "device_map": {"": 0},
+            }
+
+            logger.info(
+                "Loading base model in full precision: {}",
+                self.config.model_name
+            )
+            base_model = AutoModelForCausalLM.from_pretrained(
+                self.config.model_name,
+                **from_pretrained_kwargs,
+            )
+
+            new_vocab_size = len(self.tokenizer) # type: ignore[arg-type]
+            current_vocab_size = base_model.get_input_embeddings().weight.shape[0]
+            if new_vocab_size != current_vocab_size:
+                logger.info(
+                    "Resizing token embeddings from {} to {}",
+                    current_vocab_size,
+                    new_vocab_size,
+                )
+                base_model.resize_token_embeddings(new_vocab_size, mean_resizing=False)
+                base_model.config.vocab_size = new_vocab_size
+
+            logger.info("Loading LoRA adapter from {}", adapter_path)
+            peft_model = PeftModel.from_pretrained(base_model, adapter_path)
+
+            logger.info("Merging LoRA adapter into base model weights...")
+            merged_model = peft_model.merge_and_unload()
+
+            # Save merged model into local directory
+            model_dir = os.path.join(self.config.output_dir, "merged")
+            os.makedirs(model_dir, exist_ok=True)
+
+            logger.info("Saving merged model to {}", model_dir)
+            merged_model.save_pretrained(model_dir, safe_serialization=True)
+            self.tokenizer.save_pretrained(model_dir) # type: ignore[union-attr]
+
+            # Push merged model to HF hub
+            merged_repo = f"{self.hub_model_id}-Merged"
+            logger.info("Pushing merged model to HF Hub at {}", merged_repo)
+
+            api = HfApi()
+            api.create_repo(merged_repo, repo_type="model", exist_ok=True, private=False)
+            api.upload_folder(
+                folder_path=model_dir,
+                repo_id=merged_repo,
+                repo_type="model",
+            )
+
+            logger.success("Successfully pushed merged model to {}", merged_repo)
 
     def _prepare_configs(self) -> None:
         """
@@ -108,14 +178,17 @@ class Finetuner:
 
         if self.config.push_to_hub:
             model_name = os.path.basename(self.config.output_dir.rstrip("/"))
-            hub_model_id = f"{os.getenv('HF_ORG')}/{model_name}"
+            self.hub_model_id = f"{os.getenv('HF_ORG')}/{model_name}"
             if self.config.checkpointing:
                 hub_strategy = "every_save"
             else:
                 hub_strategy = "end"
-            logger.info("Will push adapter to the Hub with model ID: {}", hub_model_id)
+            logger.info(
+                "Will push adapter to the Hub with model ID: {}",
+                self.hub_model_id
+            )
         else:
-            hub_model_id = None
+            self.hub_model_id = None
             hub_strategy = None
 
         hf_org = os.getenv("HF_ORG")
@@ -148,16 +221,16 @@ class Finetuner:
             save_total_limit = 0
             save_only_model = True
 
-        tokenizer = AutoTokenizer.from_pretrained(
+        self.tokenizer = AutoTokenizer.from_pretrained(
             self.config.model_name,
             trust_remote_code=True,
             use_fast=True,
         )
-        if tokenizer.pad_token is None:
-            tokenizer.add_special_tokens({"pad_token": "<PAD>"})
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.add_special_tokens({"pad_token": "<PAD>"})
         tokenizer_dir = os.path.join(self.config.output_dir, "tokenizer")
         os.makedirs(tokenizer_dir, exist_ok=True)
-        tokenizer.save_pretrained(tokenizer_dir)
+        self.tokenizer.save_pretrained(tokenizer_dir)
 
         axolotl_cfg_raw = DictDefault(
             base_model=self.config.model_name,
@@ -234,7 +307,7 @@ class Finetuner:
             wandb_entity=os.getenv('WANDB_ENTITY'),
             wandb_watch="checkpoint",
             wandb_log_model="checkpoint",
-            hub_model_id=hub_model_id,
+            hub_model_id=self.hub_model_id,
             hub_strategy=hub_strategy,
         )
 
