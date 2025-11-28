@@ -152,7 +152,7 @@ class Finetuner:
             logger.info("Pushing merged model to HF Hub at {}", merged_repo)
 
             api = HfApi()
-            api.create_repo(merged_repo, repo_type="model", exist_ok=True, private=False)
+            api.create_repo(merged_repo, repo_type="model", exist_ok=True, private=True)
             api.upload_folder(
                 folder_path=model_dir,
                 repo_id=merged_repo,
