@@ -67,19 +67,13 @@ class Finetuner:
         self._prepare_configs()
         self._save_axolotl_config()
 
-    def train(self, preprocess: bool = True) -> None:
+    def train(self) -> None:
         """
         Start the finetuning process using Axolotl CLI.
 
-        :param preprocess: Whether to preprocess the data.
         :return: None
         """
         if self.axolotl_config_path:
-            if preprocess:
-                subprocess.run(
-                    ["axolotl", "preprocess", self.axolotl_config_path],
-                    check=True
-                )
             subprocess.run(
                 ["axolotl", "train", self.axolotl_config_path],
                 check=True
