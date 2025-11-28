@@ -16,6 +16,7 @@ KEEP_ARTIFACTS = [
     'BaseResults',
     'Analysis',
     'Log',
+    'wandb-history' # Cannot delete system managed artifacts
 ]
 
 # List of config keys to keep when cleaning up wandb runs
@@ -65,7 +66,6 @@ def clean_wandb_run(wandb_run_id: str) -> None:
 
     for key in current_keys:
         if key not in KEEP_CONFIG_KEYS:
-            logger.info(f"Deleting config key: {key}")
             del run.config[key]
 
     # Push the updated config to wandb server
