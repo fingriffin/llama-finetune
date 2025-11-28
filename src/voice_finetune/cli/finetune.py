@@ -4,6 +4,7 @@ import click
 
 from voice_finetune.axolotl import Finetuner
 from voice_finetune.logging import setup_logging
+from voice_finetune.utils import clean_wandb_run
 
 
 @click.command()
@@ -44,3 +45,7 @@ def main(
             and finetuner.config.push_to_hub
     ):
         finetuner.merge_and_push()
+
+    # Clean up wandb artifacts if specified
+    if wandb_run_id:
+        clean_wandb_run(wandb_run_id=wandb_run_id)
