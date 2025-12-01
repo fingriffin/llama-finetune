@@ -19,15 +19,6 @@ KEEP_ARTIFACTS = [
     'wandb-history' # Cannot delete system managed artifacts
 ]
 
-# List of config keys to keep when cleaning up wandb runs
-KEEP_CONFIG_KEYS = [
-    '0 base_model',
-    '0 data_path',
-    '1 finetune',
-    '2 inference',
-    '3 analyze',
-]
-
 def clean_wandb_run(wandb_run_id: str) -> None:
     """
     Clean artifacts form a wandb run.
