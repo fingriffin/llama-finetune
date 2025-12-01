@@ -267,15 +267,7 @@ class Finetuner:
             lora_r=self.config.lora_r,
             lora_alpha=self.config.lora_alpha,
             lora_dropout=self.config.lora_dropout,
-            lora_target_modules=[
-                "q_proj",
-                "k_proj",
-                "v_proj",
-                "o_proj",
-                "gate_proj",
-                "up_proj",
-                "down_proj",
-            ],
+            lora_target_modules=self.config.lora_target_modules,
 
             tokenizer_config=tokenizer_dir,
             special_tokens={

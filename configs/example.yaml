@@ -23,6 +23,14 @@ learning_rate: 2e-4 # Learning rate
 lora_r: 8 # LoRA rank
 lora_alpha: 16 # LoRA alpha
 lora_dropout: 0.05 # LoRA dropout
+lora_target_modules: # LoRA target modules
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
 
 sequence_len: 1024 # Max sequence length
 device_map: auto # Device map for model loading

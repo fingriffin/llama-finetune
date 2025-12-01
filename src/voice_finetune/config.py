@@ -34,6 +34,17 @@ class FinetuneConfig(BaseModel):
     lora_r: int = Field(8, description="LoRA rank")
     lora_alpha: int = Field(16, description="LoRA alpha")
     lora_dropout: float = Field(0.05, description="LoRA dropout")
+    lora_target_modules: list[str] = Field([
+    "q_proj",
+    "k_proj",
+    "v_proj",
+    "o_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj",
+    ],
+    description="List of target modules for LoRA/qLoRA"
+    )
 
     sequence_len: int = Field(1024, description="Maximum sequence length")
     device_map: str = Field("auto", description="Device map for model loading")
