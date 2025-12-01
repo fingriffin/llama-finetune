@@ -58,15 +58,3 @@ def clean_wandb_run(wandb_run_id: str) -> None:
 
         logger.info(f"Deleting artifact: {artifact.name} (type={artifact.type})")
         artifact.delete(delete_aliases=True)
-
-    logger.info(f"Cleaning wandb config for {run_path}")
-
-    # wandb config behaves like a dict
-    current_keys = list(run.config.keys())
-
-    for key in current_keys:
-        if key not in KEEP_CONFIG_KEYS:
-            del run.config[key]
-
-    # Push the updated config to wandb server
-    run.update()
