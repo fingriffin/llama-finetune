@@ -31,7 +31,7 @@ tokenizer_config: # Optional tokenizer config path in case using a different tok
 special_tokens: # Special token list
   pad_token: # Pad token
 
-save_steps: # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps.
+save_steps: # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps. 0 to only save final model.
 save_strategy: # Set to `no` to skip checkpoint saves, `epoch` at end of each epoch, `best` when better result is achieved, leave empty to infer from `save_steps`
 save_total_limit: # Checkpoints saved at a time
 save_only_model: # Whether to save only the model weights, skipping the optimizer.
@@ -60,4 +60,4 @@ wandb_entity: # Wandb entity
 wandb_watch: # Set to 'checkpoint'
 wandb_log_model: # "checkpoint" to log model to wandb Artifacts every `save_steps` or "end" to log only at the end of training
 hub_model_id: # Push checkpoints to hub
-hub_strategy: # How to push checkpoints to hub
+hub_strategy: # How to push checkpoints to hub, recommend 'every_save' if checkpointing, 'end' otherwise
