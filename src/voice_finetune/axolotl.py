@@ -2,15 +2,10 @@
 
 import os
 import subprocess
-from enum import Enum
 from pathlib import Path
-from typing import Any
 
-import torch
-from axolotl.utils.dict import DictDefault
 from huggingface_hub import HfApi, snapshot_download
 from loguru import logger
-from omegaconf import DictConfig, ListConfig
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -21,23 +16,6 @@ from voice_finetune.config import (
     load_finetune_config,
 )
 from voice_finetune.hf import configure_hf, get_token
-
-
-def to_plain(obj: Any) -> Any:
-    """Convert Axolotl / OmegaConf objects into plain YAML-serialisable Python types."""
-    if isinstance(obj, Enum):
-        return obj.value
-    if isinstance(obj, torch.dtype):
-        return str(obj).replace("torch.", "")
-    if isinstance(obj, DictConfig):
-        return {k: to_plain(v) for k, v in obj.items()}
-    if isinstance(obj, ListConfig):
-        return [to_plain(v) for v in obj]
-    if isinstance(obj, DictDefault) or isinstance(obj, dict):
-        return {k: to_plain(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [to_plain(v) for v in obj]
-    return obj
 
 
 class Finetuner:
