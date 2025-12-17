@@ -1,5 +1,6 @@
 """Configuration management for finetuning with Axolotl."""
 
+import os
 import shutil
 from pathlib import Path
 
@@ -12,50 +13,88 @@ from wandb import Api
 class FinetuneConfig(BaseModel):
     """Configuration for LoRA/QLoRA finetuning."""
 
-    model_name: str = Field(..., description="Name of the model to use")
-    adapter: str = Field(..., description="Name of the adpter model to use")
-    train_data_path: str = Field(..., description="Path to training data")
+    base_model: str = Field(..., description="Name of the model to use")
+    seed: int = Field(42, description="Random seed")
     output_dir: str = Field(..., description="Directory to save checkpoints and outputs")
+    device_map: str = Field("auto", description="Device map for model loading")
 
+    adapter: str = Field(..., description="Name of the adapter model to use")
     load_in_8bit: bool = Field(False, description="Load the model from 8bit")
     load_in_4bit: bool = Field(False, description="Load the model from 4bit")
     bf16: bool = Field(False, description="Load the model from BF16")
     fp16: bool = Field(True, description="Load the model from FP16")
-    gradient_checkpointing: bool = Field(True, description="Use gradient checkpointing")
-
     optimizer: str = Field("paged_adamw_32bit", description="Optimizer to use")
-    gpus: int = Field(1, description="Number of GPUs to use")
-
-    epochs: int = Field(3, description="Number of training epochs")
-    micro_batch_size: int = Field(2, description="Batch size per device")
-    gradient_accumulation_steps: int = Field(4, description="No. of accumulation steps")
+    num_epochs: int = Field(3, description="Number of training epochs")
     learning_rate: float = Field(2e-4, description="Learning rate")
+    micro_batch_size: int = Field(2, description="Batch size per device")
+    sequence_len: int = Field(1024, description="Maximum sequence length")
+    gradient_accumulation_steps: int = Field(4, description="No. of accumulation steps")
+    gradient_checkpointing: bool = Field(False, description="Use gradient checkpointing")
+    flash_attention: bool = Field(False, description="Use flash attention if available")
 
     lora_r: int = Field(8, description="LoRA rank")
     lora_alpha: int = Field(16, description="LoRA alpha")
     lora_dropout: float = Field(0.05, description="LoRA dropout")
-    lora_target_modules: list[str] = Field([
-    "q_proj",
-    "k_proj",
-    "v_proj",
-    "o_proj",
-    "gate_proj",
-    "up_proj",
-    "down_proj",
-    ],
-    description="List of target modules for LoRA/qLoRA"
+    lora_target_modules: list[str] |  None = Field(
+        None,
+        description="List of target modules for LoRA",
     )
 
-    sequence_len: int = Field(1024, description="Maximum sequence length")
-    device_map: str = Field("auto", description="Device map for model loading")
-    flash_attention: bool = Field(False, description="Use flash attention if available")
+    tokenizer_config: str | None = Field(None, description="Tokenizer config")
+    special_tokens: dict[str, str] | None = Field(None, description="Special tokens dict")
 
-    seed: int = Field(42, description="Random seed")
-    checkpointing: bool = Field(False, description="Whether to use checkpointing")
-    push_to_hub: bool = Field(True, description="Push to HF Hub after training")
-    do_validation: bool = Field(False, description="Whether to run validation")
-    do_merge: bool = Field(True, description="Whether to merge and push LoRA adapters")
-    adapter_subfolder: str = Field("", description="Adapter subfolder in the model repo")
+    save_steps: int | float | None = Field(
+        0,
+        description="When to save model checkpoints",
+    )
+    save_strategy: str | None = Field("no", description="Saving strategy")
+    save_total_limit: int = Field(
+        0,
+        description="Maximum number of checkpoints to save at one point"
+    )
+    save_only_model: bool = Field(
+        True,
+        description="Whether to save only the model",
+    )
+
+    datasets: list[dict[str, str]] = Field(
+        ...,
+        description="Datasets to use"
+    )
+    test_datasets: list[dict[str, str]] = Field(
+        ...,
+        description="Validation datasets to use"
+    )
+    eval_steps: int | None = Field(
+        1,
+        description="How often to run validation, in steps"
+    )
+
+    use_wandb: bool = Field(True, description="Whether to use wandb")
+    wandb_project: str = Field(
+        os.getenv("WANDB_PROJECT"),
+        description="wandb project name",
+    )
+    wandb_entity: str = Field(
+        os.getenv("WANDB_ENTITY"),
+        description="wandb entity name",
+    )
+    wandb_watch: str = Field(
+        "checkpoint",
+        description="When to log model artifact"
+    )
+    wandb_log_model: str = Field(
+        "checkpoint",
+        description="When to log model artifact"
+    )
+    hub_model_id: str = Field(
+        ...,
+        description="Where to push checkpoints to on HF hub"
+    )
+    hub_strategy: str = Field(
+        "end",
+        description="How to push checkpoints to HF hub"
+    )
 
     @field_validator("output_dir")
     def create_output_path(cls, v: str) -> str:

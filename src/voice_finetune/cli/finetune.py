@@ -38,13 +38,8 @@ def main(
     # Train the model
     finetuner.train()
 
-    # Merge and push to HF hub if specified
-    if (
-            finetuner.config
-            and finetuner.config.do_merge
-            and finetuner.config.push_to_hub
-    ):
-        finetuner.merge_and_push()
+    # Merge and push to HF hub
+    finetuner.merge_and_push()
 
     # Clean up wandb artifacts if specified
     if wandb_run_id:
