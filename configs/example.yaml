@@ -1,44 +1,63 @@
 # Example configuration file with default values
-# Empty fields are required fields
+# If happy with default values, can remove
+# cf. https://docs.axolotl.ai/docs/config-reference.html
+# Empty fields are fields with no defaults
 
-model_name: # Name of the HF base model to use
-adapter: # Name of the adapter to use (e.g. lora)
-train_data_path: # Local path to training data or HF dataset name
-output_dir: # Directory to save model locally, also used as repo name when pushing to HF Hub
+base_model: # Name of base model to use
+seed: # Seed for reproducibility
+output_dir: # Where to save the full fine-tuned model to
+device_map: # Device map to use when loading the model
 
-load_in_8bit: false # Whether to load the model from 8bit
-load_in_4bit: false # Whether to oad the model from 4bit
-bf16: false # Whether to load the model from BF16
-fp16: true # Whether to load the model from FP16
-gradient_checkpointing: true # Whether to use gradient checkpointing
+adapter: # Which PEFT method to use (lora, qlora, or empty for FFT)
+load_in_8bit: False # Whether to load in 8bit
+load_in_4bit: False # Whether to load in 4bit
+bf16: auto # Whether ot use bf16, or 'auto' for automatic detection
+fp16: # Whether to use fp16
+optimizer: adamw_torch_fused # Optimizer to use
+num_epochs: 1 # Number of epochs
+learning_rate: # Learning rate
+micro_batch_size: 1 # Micro batch size
+sequence_len: 512 # Maximum input length to fine-tune with
+gradient_accumulation_steps: 1 # Gradient accumulation steps
+gradient_checkpointing: False # Whether to use gradient checkpointing
+flash_attention: # Whether to use flash attention
 
-optimizer: paged_adamw_32bit # Optimizer to use
-gpus: 1 # Number of GPUs to use
+lora_r: # LoRA rank
+lora_alpha: # LoRA alpha
+lora_dropout: # LoRA dropout rate
+lora_target_modules: # LoRA target module list (list[str])
 
-epochs: 3 # Number of training epochs
-micro_batch_size: 2 # Micro batch size
-gradient_accumulation_steps: 4 # Gradient accumulation steps
-learning_rate: 2e-4 # Learning rate
+tokenizer_config: # Optional tokenizer config path in case using a different tokenizer than one in base model
+special_tokens: # Special token list
+  pad_token: # Pad token
 
-lora_r: 8 # LoRA rank
-lora_alpha: 16 # LoRA alpha
-lora_dropout: 0.05 # LoRA dropout
-lora_target_modules: # LoRA target modules
-  - q_proj
-  - k_proj
-  - v_proj
-  - o_proj
-  - gate_proj
-  - up_proj
-  - down_proj
+save_steps: # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps. 0 to only save final model.
+save_strategy: # Set to `no` to skip checkpoint saves, `epoch` at end of each epoch, `best` when better result is achieved, leave empty to infer from `save_steps`
+save_total_limit: # Checkpoints saved at a time
+save_only_model: # Whether to save only the model weights, skipping the optimizer.
 
-sequence_len: 1024 # Max sequence length
-device_map: auto # Device map for model loading
-flash_attention: false # Whether to use flash attention
+datasets:
+  - path: # HF dataset repo
+    split: # Name of dataset split to load from
+    type: # The type of prompt used for training
+    field_messages: # Key containing the messages
+    message_field_role: # Key containing the role
+    message_field_content: # Key containing the content
 
-seed: 42 # Random seed for reproducibility
-checkpointing: false # Whether to save checkpoints during training
-push_to_hub: true # Whether to push the model (and checkpoints if provided) to HF
-do_validation: false # Whether to run validation during training
-do_merge: true # Whether to merge the adapter weights into the base model after training and push to HF
-adapter_subfolder: # Adapter subfolder inside the adapter repo, if any (e.g. checkpoint-13)
+# Use this for validation set
+test_datasets:
+  - path: # *
+    split: # *
+    type: # *
+    field_messages: # *
+    message_field_role: # *
+    message_field_content: # *
+eval_steps: # Leave empty to eval at each epoch, integer for every N steps. float for fraction of total steps
+
+use_wandb: # Whether to use wandb
+wandb_project: # Wandb project name
+wandb_entity: # Wandb entity
+wandb_watch: # Set to 'checkpoint'
+wandb_log_model: # "checkpoint" to log model to wandb Artifacts every `save_steps` or "end" to log only at the end of training
+hub_model_id: # Push checkpoints to hub
+hub_strategy: # How to push checkpoints to hub, recommend 'every_save' if checkpointing, 'end' otherwise
