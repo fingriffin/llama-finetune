@@ -21,7 +21,7 @@ class TRLConfig(BaseModel):
 
     use_vllm: bool = Field(False, description="Whether to use vLLM during training")
 
-    rewards: list[str] = Field(..., description="List of stylometric rewards to use")
+    reward_funcs: list[str] = Field(..., description="List of stylometric rewards to use")
     reward_weights: list[float] = Field(
         ...,
         description="List of weights for stylometric rewards"
