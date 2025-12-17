@@ -34,6 +34,7 @@ class Finetuner:
         :return: None
         """
         self.config_path: str = config_path
+        self.local_config_path: Path | None = None
         self.wandb_run_id: str | None = wandb_run_id
 
         self.tokenizer: AutoTokenizer | None = None
@@ -46,7 +47,7 @@ class Finetuner:
 
     def train(self) -> None:
         """Start the finetuning process using Axolotl CLI."""
-        if not self.config_path:
+        if not self.local_config_path:
             raise ValueError("axolotl_config_path must be set before training.")
 
         env = os.environ.copy()
@@ -63,7 +64,7 @@ class Finetuner:
                 env["WANDB_ENTITY"] = self.config.wandb_entity
 
         subprocess.run(
-            ["axolotl", "train", self.config_path],
+            ["axolotl", "train", self.local_config_path],
             check=True,
             env=env,
         )
@@ -142,14 +143,14 @@ class Finetuner:
         """
         if is_wandb_artifact(self.config_path):
             logger.info("Detected wandb artifact: {}", self.config_path)
-            config_file = load_config_from_wandb_artifact(self.config_path)
-            logger.info("Downloaded config to {}", str(config_file))
+            self.local_config_path = load_config_from_wandb_artifact(self.config_path)
+            logger.info("Downloaded config to {}", str(self.local_config_path))
         else:
-            config_file = Path(self.config_path).expanduser()
+            self.local_config_path = Path(self.config_path).expanduser()
 
         try:
-            logger.info("Loading config from {}", str(config_file))
-            self.config = load_finetune_config(str(config_file))
+            logger.info("Loading config from {}", str(self.local_config_path))
+            self.config = load_finetune_config(str(self.local_config_path))
             logger.success("Config loaded successfully!")
             print("Current configuration:")
             print(self.config.model_dump_json(indent=2))
