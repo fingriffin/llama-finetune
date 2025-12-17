@@ -31,6 +31,24 @@ tokenizer_config: # Optional tokenizer config path in case using a different tok
 special_tokens: # Special token list
   pad_token: # Pad token
 
+rl: # Type of RL to use, do not include/eave empty if not using TRL
+trl: # Optional configuration for TRL, do not include/leave empty if not using TRL
+
+  max_completion_len: 2048 # Maximum token length of completions during TRL
+
+  use_vllm: false # Whether to use vLLM during training
+
+  rewards: # List of reward to use during training
+  reward_weights: # List of reward weights
+  num_generations: 1 # Number of generations to sample from
+  log_completions: false # Whether to log completions during training
+
+  scale_rewards: false # Whether to scale rewards by std deviation during training
+
+  temperature: 0.7 # Temperature for RL policy
+  top_p: 0.9 # Top-p value for generation policy, Top-k also available (mutually exclusive)
+  num_iterations: 1 # Number of iterations per batch for GRPO
+
 save_steps: # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps. 0 to only save final model.
 save_strategy: # Set to `no` to skip checkpoint saves, `epoch` at end of each epoch, `best` when better result is achieved, leave empty to infer from `save_steps`
 save_total_limit: # Checkpoints saved at a time

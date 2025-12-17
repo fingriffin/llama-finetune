@@ -3,12 +3,58 @@
 import os
 import shutil
 from pathlib import Path
+from typing import Optional
 
 import yaml
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
 from wandb import Api
 
+
+class TRLConfig(BaseModel):
+    """Configuration for fine-tuning with TRL."""
+
+    max_completion_len: int = Field(
+        2048,
+        description="Maximum token length of completions during TRL"
+    )
+
+    use_vllm: bool = Field(False, description="Whether to use vLLM during training")
+
+    rewards: list[str] = Field(..., description="List of stylometric rewards to use")
+    reward_weights: list[float] = Field(
+        ...,
+        description="List of weights for stylometric rewards"
+    )
+    num_generations: int = Field(1, description="Number of generations to sample")
+    log_completions: bool = Field(
+        False,
+        description="Whether to log completions during training"
+    )
+
+    # Hardcoded as None to force GRPO training
+    sync_ref_model: bool | None = Field(
+        None,
+        description="Whether to synchronize the baseline policy during training"
+    )
+    ref_model_mixup_alpha: float | None = Field(
+        None,
+        description="The mixup alpha parameter for the reference model."
+    )
+    ref_model_sync_steps: int | None = Field(
+        None,
+        description="The number of steps to synchronize the reference model."
+    )
+
+    scale_rewards: bool = Field(
+        False,
+        description="Whether to scale rewards by std deviation during training"
+    )
+
+    temperature: float = Field(0.7, description="Temperature for the RL policy")
+    top_p: float | None = Field(0.9, description="Top-p value for generation policy")
+    top_k: int | None = Field(None, description="Top-k sampling for generation policy")
+    num_iterations: int = Field(1, description="Number of iterations per batch for GRPO")
 
 class FinetuneConfig(BaseModel):
     """Configuration for LoRA/QLoRA finetuning."""
@@ -38,6 +84,12 @@ class FinetuneConfig(BaseModel):
     lora_target_modules: list[str] |  None = Field(
         None,
         description="List of target modules for LoRA",
+    )
+
+    rl: Optional[str] = Field(None, description="Name of RL model to use (e.g. GRPO)")
+    trl: Optional[TRLConfig] = Field(
+        None,
+        description="Optional configuration for TRL"
     )
 
     tokenizer_config: str | None = Field(None, description="Tokenizer config")
