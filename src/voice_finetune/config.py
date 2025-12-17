@@ -22,31 +22,13 @@ class TRLConfig(BaseModel):
         2048,
         description="Maximum token length of completions during TRL"
     )
-
     use_vllm: bool = Field(False, description="Whether to use vLLM during training")
-
+    num_generations: int = Field(1, description="Number of generations to sample")
     reward_funcs: list[str] = Field(..., description="List of stylometric rewards to use")
     reward_weights: list[float] = Field(
         ...,
         description="List of weights for stylometric rewards"
     )
-    num_generations: int = Field(1, description="Number of generations to sample")
-    log_completions: bool = Field(
-        False,
-        description="Whether to log completions during training"
-    )
-
-
-
-    scale_rewards: bool = Field(
-        False,
-        description="Whether to scale rewards by std deviation during training"
-    )
-
-    temperature: float = Field(0.7, description="Temperature for the RL policy")
-    top_p: float | None = Field(0.9, description="Top-p value for generation policy")
-    top_k: int | None = Field(None, description="Top-k sampling for generation policy")
-    num_iterations: int = Field(1, description="Number of iterations per batch for GRPO")
 
 class FinetuneConfig(BaseModel):
     """Configuration for LoRA/QLoRA finetuning."""
