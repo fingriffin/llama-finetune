@@ -34,6 +34,7 @@ special_tokens: # Special token list
 rl: # Type of RL to use, do not include/eave empty if not using TRL
 trl: # Optional configuration for TRL, do not include/leave empty if not using TRL
 
+  beta: 0.001 # RL beta hyperparameter
   max_completion_len: 2048 # Maximum token length of completions during TRL
 
   use_vllm: false # Whether to use vLLM during training
