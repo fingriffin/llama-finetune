@@ -49,7 +49,7 @@ save_only_model: # Whether to save only the model weights, skipping the optimize
 datasets:
   - path: # HF dataset repo
     split: # Name of dataset split to load from
-    type: # The type of prompt used for training
+    type: # The type of prompt used for training, use grpo.grpo_transform for GRPO training
     field_messages: # Key containing the messages
     message_field_role: # Key containing the role
     message_field_content: # Key containing the content
