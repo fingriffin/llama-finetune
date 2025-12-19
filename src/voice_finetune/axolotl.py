@@ -17,6 +17,7 @@ from voice_finetune.config import (
 )
 from voice_finetune.hf import configure_hf, get_token
 
+PACKAGE_DIR = Path(__file__).parent
 
 class Finetuner:
     """Wrapper for Axolotl CLI engine."""
@@ -67,6 +68,7 @@ class Finetuner:
             ["axolotl", "train", self.local_config_path],
             check=True,
             env=env,
+            cwd=PACKAGE_DIR,
         )
 
     def merge_and_push(self) -> None:
