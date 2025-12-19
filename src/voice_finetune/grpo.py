@@ -28,14 +28,13 @@ def grpo_transform(cfg: Any, *args: Any, **kwargs: Any) -> Callable[..., Any]:
     def transform_fn(example: Any, tokenizer: Any | None = None) -> Any:
         _ = tokenizer
 
-        if PROMPT_KEY not in example:
-            if MESSAGES_KEY in example:
-                example[PROMPT_KEY] = example[MESSAGES_KEY]
-            else:
-                raise KeyError(
-                    f"GRPO requires a '{PROMPT_KEY}' field. "
-                    f"Expected '{MESSAGES_KEY}' key for chat template dataset."
-                )
+        if MESSAGES_KEY in example:
+            example[PROMPT_KEY] = example.pop(MESSAGES_KEY)
+        elif PROMPT_KEY not in example:
+            raise KeyError(
+                f"GRPO requires a `{PROMPT_KEY}` field."
+                f"Expected `{MESSAGES_KEY}` key for chat-template dataset."
+            )
 
         return example
 
