@@ -31,6 +31,16 @@ tokenizer_config: # Optional tokenizer config path in case using a different tok
 special_tokens: # Special token list
   pad_token: # Pad token
 
+rl: # Type of RL to use, do not include/eave empty if not using TRL
+trl: # Optional configuration for TRL, do not include/leave empty if not using TRL
+
+  beta: 0.001 # RL beta hyperparameter
+  max_completion_len: 2048 # Maximum token length of completions during TRL
+  use_vllm: false # Whether to use vLLM during training
+  num_generations: 4 # Number of generations to sample from
+  reward_funcs: # List of reward to use during training
+  reward_weights: # List of reward weights
+
 save_steps: # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps. 0 to only save final model.
 save_strategy: # Set to `no` to skip checkpoint saves, `epoch` at end of each epoch, `best` when better result is achieved, leave empty to infer from `save_steps`
 save_total_limit: # Checkpoints saved at a time
@@ -39,7 +49,7 @@ save_only_model: # Whether to save only the model weights, skipping the optimize
 datasets:
   - path: # HF dataset repo
     split: # Name of dataset split to load from
-    type: # The type of prompt used for training
+    type: # The type of prompt used for training, use grpo.grpo_transform for GRPO training
     field_messages: # Key containing the messages
     message_field_role: # Key containing the role
     message_field_content: # Key containing the content

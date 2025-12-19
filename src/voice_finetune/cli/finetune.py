@@ -2,8 +2,8 @@
 
 import click
 
-from voice_finetune.axolotl import Finetuner
-from voice_finetune.logging import setup_logging
+from voice_finetune.custom_logging import setup_logging
+from voice_finetune.finetuner import Finetuner
 from voice_finetune.utils import clean_wandb_run
 
 

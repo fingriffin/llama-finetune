@@ -3,12 +3,35 @@
 import os
 import shutil
 from pathlib import Path
+from typing import Optional
 
 import yaml
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
 from wandb import Api
 
+ROOT = Path(__file__).resolve().parents[2]
+CONFIGS_DIR = ROOT / "src" / "voice_finetune" / "configs"
+ARTIFACTS_DIR = ROOT / "artifacts"
+
+class TRLConfig(BaseModel):
+    """Configuration for fine-tuning with TRL."""
+
+    beta: float = Field(
+        0.001,
+        description="RL beta hyperparameter",
+    )
+    max_completion_len: int = Field(
+        2048,
+        description="Maximum token length of completions during TRL"
+    )
+    use_vllm: bool = Field(False, description="Whether to use vLLM during training")
+    num_generations: int = Field(4, description="Number of generations to sample")
+    reward_funcs: list[str] = Field(..., description="List of stylometric rewards to use")
+    reward_weights: list[float] = Field(
+        ...,
+        description="List of weights for stylometric rewards"
+    )
 
 class FinetuneConfig(BaseModel):
     """Configuration for LoRA/QLoRA finetuning."""
@@ -38,6 +61,12 @@ class FinetuneConfig(BaseModel):
     lora_target_modules: list[str] |  None = Field(
         None,
         description="List of target modules for LoRA",
+    )
+
+    rl: Optional[str] = Field(None, description="Name of RL model to use (e.g. GRPO)")
+    trl: Optional[TRLConfig] = Field(
+        None,
+        description="Optional configuration for TRL"
     )
 
     tokenizer_config: str | None = Field(None, description="Tokenizer config")
@@ -138,7 +167,7 @@ def load_config_from_wandb_artifact(uri: str) -> Path:
 
     artifact = api.artifact(uri, type=None)
 
-    configs_dir = Path("configs")
+    configs_dir = CONFIGS_DIR
     configs_dir.mkdir(parents=True, exist_ok=True)
 
     tmp_dir = Path(artifact.download())
@@ -150,10 +179,6 @@ def load_config_from_wandb_artifact(uri: str) -> Path:
         raise RuntimeError(f"Multiple YAML files found inside artifact: {uri}")
 
     yaml_src = yaml_files[0]
-
-    # Ensure local configs directory exists
-    configs_dir = Path("configs")
-    configs_dir.mkdir(parents=True, exist_ok=True)
 
     # Construct destination filename
     artifact_name = uri.split("/")[-1].split(":")[0]
@@ -167,7 +192,7 @@ def load_config_from_wandb_artifact(uri: str) -> Path:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
     # Delete the wandb artifacts/ folder
-    artifacts_dir = Path("artifacts")
+    artifacts_dir = ARTIFACTS_DIR
     if artifacts_dir.exists():
         shutil.rmtree(artifacts_dir, ignore_errors=True)
 
