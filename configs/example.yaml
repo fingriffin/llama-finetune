@@ -37,7 +37,7 @@ trl: # Optional configuration for TRL, do not include/leave empty if not using T
   beta: 0.001 # RL beta hyperparameter
   max_completion_len: 2048 # Maximum token length of completions during TRL
   use_vllm: false # Whether to use vLLM during training
-  num_generations: 1 # Number of generations to sample from
+  num_generations: 4 # Number of generations to sample from
   reward_funcs: # List of reward to use during training
   reward_weights: # List of reward weights
 

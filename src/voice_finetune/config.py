@@ -26,7 +26,7 @@ class TRLConfig(BaseModel):
         description="Maximum token length of completions during TRL"
     )
     use_vllm: bool = Field(False, description="Whether to use vLLM during training")
-    num_generations: int = Field(1, description="Number of generations to sample")
+    num_generations: int = Field(4, description="Number of generations to sample")
     reward_funcs: list[str] = Field(..., description="List of stylometric rewards to use")
     reward_weights: list[float] = Field(
         ...,
