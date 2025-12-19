@@ -10,6 +10,9 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
 from wandb import Api
 
+ROOT = Path(__file__).resolve().parents[2]
+CONFIGS_DIR = ROOT / "configs"
+ARTIFACTS_DIR = ROOT / "artifacts"
 
 class TRLConfig(BaseModel):
     """Configuration for fine-tuning with TRL."""
@@ -164,7 +167,7 @@ def load_config_from_wandb_artifact(uri: str) -> Path:
 
     artifact = api.artifact(uri, type=None)
 
-    configs_dir = Path("configs")
+    configs_dir = CONFIGS_DIR
     configs_dir.mkdir(parents=True, exist_ok=True)
 
     tmp_dir = Path(artifact.download())
@@ -176,10 +179,6 @@ def load_config_from_wandb_artifact(uri: str) -> Path:
         raise RuntimeError(f"Multiple YAML files found inside artifact: {uri}")
 
     yaml_src = yaml_files[0]
-
-    # Ensure local configs directory exists
-    configs_dir = Path("configs")
-    configs_dir.mkdir(parents=True, exist_ok=True)
 
     # Construct destination filename
     artifact_name = uri.split("/")[-1].split(":")[0]
@@ -193,7 +192,7 @@ def load_config_from_wandb_artifact(uri: str) -> Path:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
     # Delete the wandb artifacts/ folder
-    artifacts_dir = Path("artifacts")
+    artifacts_dir = ARTIFACTS_DIR
     if artifacts_dir.exists():
         shutil.rmtree(artifacts_dir, ignore_errors=True)
 
