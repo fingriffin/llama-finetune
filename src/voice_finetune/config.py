@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 from wandb import Api
 
 ROOT = Path(__file__).resolve().parents[2]
-CONFIGS_DIR = ROOT / "configs"
+CONFIGS_DIR = ROOT / "src" / "voice_finetune" / "configs"
 ARTIFACTS_DIR = ROOT / "artifacts"
 
 class TRLConfig(BaseModel):
