@@ -48,10 +48,4 @@ def rand_reward_func(
     """
     _ = kwargs
 
-    base_completions = _get_base_completions()
-
-    # TODO: Remove below (temporary debugging)
-    print(completions)
-    print(base_completions)
-
     return [random.uniform(0, 1) for _ in completions]
