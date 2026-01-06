@@ -22,7 +22,10 @@ FWF_FILENAME = "fwf.pkl"
 class DistributionManager:
     """Manages persistent storage and loading of stylometric distributions."""
 
-    def __init__(self, fwf: bool = False) -> None:
+    def __init__(self,
+                 *,
+                 fwf: bool = False
+        ) -> None:
         """
         Initialize the distribution manager.
 
@@ -97,7 +100,9 @@ class DistributionManager:
 
         :return: None
         """
-        fwfs = [self._calculate_fwf(c) for c in self.base_completions]
+        fwfs = [
+            self.calculate_fwf(c["messages"][2]["content"]) for c in self.base_completions
+        ]
 
         if not fwfs:
             raise ValueError("No function word frequencies computed. "
@@ -115,26 +120,14 @@ class DistributionManager:
             pickle.dump(kde, f)
 
     @staticmethod
-    def _calculate_fwf(completion_dict: dict) -> float:
+    def calculate_fwf(completion: str) -> float:
         """
         Compute the function word frequency of a completion.
 
-        A completion should have the following structure:
-
-        {
-            'messages': [
-                {'role': 'system', 'content': ...},
-                {'role': 'user', 'content': ...},
-                {'role': 'assistant', 'content': ...},
-            ]
-        }
-
-        :param completion_dict: a dictionary representing a completion.
+        :param completion: a plain text completion of a prompt.
         :return: function word frequency of the completion.
         """
         stop_words = set(stopwords.words("english"))
-
-        completion = completion_dict["messages"][2]["content"]
 
         words = word_tokenize(completion.lower())
 
