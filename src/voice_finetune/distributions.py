@@ -2,15 +2,13 @@
 
 import json
 import pickle
+import re
 import string
 from pathlib import Path
 from typing import List
 
-import nltk
 import numpy as np
 from datasets import load_dataset
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
 from scipy.stats import gaussian_kde
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -18,6 +16,25 @@ DISTRIBUTIONS_DIR = ROOT_DIR / "data" / "distributions"
 BASE_COMPLETIONS_FILENAME = "train.jsonl"
 FWF_FILENAME = "fwf.pkl"
 
+# TODO: Move this
+STOP_WORDS = [
+    "i", "me", "my", "myself", "we", "our", "ours", "ourselves",
+    "you", "your", "yours", "yourself", "yourselves", "he", "him",
+    "his", "himself", "she", "her", "hers", "herself", "it", "its",
+    "itself", "they", "them", "their", "theirs", "themselves",
+    "what", "which", "who", "whom", "this", "that", "these", "those",
+    "am", "is", "are", "was", "were", "be", "been", "being", "have",
+    "has", "had", "having", "do", "does", "did", "doing", "a", "an",
+    "the", "and", "but", "if", "or", "because", "as", "until",
+    "while", "of", "at", "by", "for", "with", "about", "against",
+    "between", "into", "through", "during", "before", "after",
+    "above", "below", "to", "from", "up", "down", "in", "out", "on",
+    "off", "over", "under", "again", "further", "then", "once", "here",
+    "there", "when", "where", "why", "how", "all", "any", "both", "each",
+    "few", "more", "most", "other", "some", "such", "no", "nor", "not",
+    "only", "own", "same", "so", "than", "too", "very", "s", "t", "can",
+    "will", "just", "don", "should", "now"
+]
 
 class DistributionManager:
     """Manages persistent storage and loading of stylometric distributions."""
@@ -39,8 +56,6 @@ class DistributionManager:
         self.files = self._list_distribution_files()
         self._load_base_completions()
         if self.fwf:
-            nltk.download("punkt", quiet=True)
-            nltk.download("stopwords", quiet=True)
             self._load_or_create_fwf()
 
     @staticmethod
@@ -127,9 +142,9 @@ class DistributionManager:
         :param completion: a plain text completion of a prompt.
         :return: function word frequency of the completion.
         """
-        stop_words = set(stopwords.words("english"))
+        stop_words = set(STOP_WORDS)
 
-        words = word_tokenize(completion.lower())
+        words = re.findall(r"\b\w+\b", completion.lower())
 
         words_no_punct = [word for word in words if word not in string.punctuation]
 
