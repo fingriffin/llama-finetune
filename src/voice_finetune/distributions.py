@@ -204,13 +204,34 @@ class DistributionManager:
         return fw_count / len(words_no_punct) if words_no_punct else 0
 
     @staticmethod
-    def calculate_mattr(completion: str) -> float:
+    def calculate_mattr(
+            completion: str,
+            window: int = 100,
+    ) -> float:
         """
         Compute the MATTR of a completion.
 
         :param completion: a plain text completion of a prompt.
+        :param window: window size of the window used for computing MATTR.
         :return: MATTR of the completion.
         """
-        _ = completion
-        # TODO: Implement this
-        return 0.0
+        words = re.findall(r"\b\w+\b", completion.lower())
+
+        words_no_punct = [word for word in words if word not in string.punctuation]
+
+        unique_words = set(words_no_punct)
+
+        ttr = len(unique_words) / len(words) if words else 0
+
+        # First ensure window is not larger than the number of words
+        if len(words_no_punct) < window:
+            mattr = ttr
+        else:
+            mattr = np.mean(
+                [
+                    len(set(words_no_punct[i : i + window])) / window
+                    for i in range(0, len(words_no_punct), window)
+                ]
+            )
+
+        return float(mattr)
