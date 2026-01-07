@@ -15,6 +15,7 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 DISTRIBUTIONS_DIR = ROOT_DIR / "data" / "distributions"
 BASE_COMPLETIONS_FILENAME = "train.jsonl"
 FWF_FILENAME = "fwf.pkl"
+MATTR_FILENAME = "mattr.pkl"
 
 # TODO: Move this
 STOP_WORDS = [
@@ -41,7 +42,8 @@ class DistributionManager:
 
     def __init__(self,
                  *,
-                 fwf: bool = False
+                 fwf: bool = False,
+                 mattr: bool = False,
         ) -> None:
         """
         Initialize the distribution manager.
@@ -49,14 +51,21 @@ class DistributionManager:
         :param fwf: If True, import function word frequency distribution
         """
         self.fwf = fwf
+        self.mattr = mattr
+
         self.base_completions: List[dict] = []
         self.fwf_kde = None
+        self.mattr_kde = None
 
         DISTRIBUTIONS_DIR.mkdir(parents=True, exist_ok=True)
         self.files = self._list_distribution_files()
         self._load_base_completions()
+
         if self.fwf:
             self._load_or_create_fwf()
+
+        if self.mattr:
+            self._load_or_create_mattr()
 
     @staticmethod
     def _list_distribution_files() -> List[Path]:
@@ -99,6 +108,21 @@ class DistributionManager:
         else:
             self._save_fwf_kde()
 
+    def _load_or_create_mattr(self) -> None:
+        """
+        Load MATTR (Moving average TTR) KDE if it exists.
+
+        Otherwise, compute and save it.
+
+        :return: None
+        """
+        mattr_file = DISTRIBUTIONS_DIR / FWF_FILENAME
+        if mattr_file.exists():
+            with mattr_file.open("rb") as f:
+                self.mattr_kde = pickle.load(f)
+        else:
+            self._save_mattr_kde()
+
     @staticmethod
     def _save_base_completions() -> None:
         """
@@ -134,6 +158,33 @@ class DistributionManager:
         with fwf_file.open("wb") as f:
             pickle.dump(kde, f)
 
+    def _save_mattr_kde(self) -> None:
+        """
+        Compute and save the MATTR distribution of the base completions.
+
+        :return: None
+        """
+        mattrs = [
+            self.calculate_mattr(
+                c["messages"][2]["content"])
+            for c in self.base_completions
+        ]
+
+        if not mattrs:
+            raise ValueError("No MATTR values computed. "
+                             "Base completions may be empty.")
+
+        # Fit KDE to the scalar FWF values
+        kde = gaussian_kde(np.array(mattrs))
+
+        # Store in instance
+        self.mattr_kde = kde
+
+        # Save KDE to disk
+        mattr_file = DISTRIBUTIONS_DIR / MATTR_FILENAME
+        with mattr_file.open("wb") as f:
+            pickle.dump(kde, f)
+
     @staticmethod
     def calculate_fwf(completion: str) -> float:
         """
@@ -151,3 +202,15 @@ class DistributionManager:
         fw_count = sum(1 for word in words_no_punct if word in stop_words)
 
         return fw_count / len(words_no_punct) if words_no_punct else 0
+
+    @staticmethod
+    def calculate_mattr(completion: str) -> float:
+        """
+        Compute the MATTR of a completion.
+
+        :param completion: a plain text completion of a prompt.
+        :return: MATTR of the completion.
+        """
+        _ = completion
+        # TODO: Implement this
+        return 0.0
