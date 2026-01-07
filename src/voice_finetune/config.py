@@ -35,7 +35,7 @@ class TRLConfig(BaseModel):
 
     temperature: float = Field(
         0.7,
-        description="Temperature for sampling when calculating advantages."
+        description="Temperature for GRPO sampling when calculating advantages."
     )
 
 class FinetuneConfig(BaseModel):
