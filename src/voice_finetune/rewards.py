@@ -41,3 +41,40 @@ def fwf_reward_func(
     ]
 
     return np.log(fwf_kde(fwfs)).tolist()
+
+def mattr_reward_func(
+        completions: list[list[dict[str,str]]],
+        **kwargs: dict
+) -> list[float]:
+    """
+    Return the MATTR reward for each completion.
+
+    The parameter completions has the following structure:
+
+    [
+        [
+            {"role": "assistant", "content": ...},
+            {"role": "assistant", "content": ...},
+            ... continued num_generations times,
+        ]
+    ]
+
+    :param completions: List of completions.
+    :param kwargs: Keyword arguments from trainer.
+    :return: List of MATTR reward values.
+    """
+    _ = kwargs
+
+    manager = DistributionManager(mattr=True)
+
+    mattr_kde = manager.mattr_kde
+
+    if not mattr_kde:
+        raise RuntimeError("Failed to load MATTR KDE.")
+
+    mattrs = [
+        manager.calculate_mattr(c[0]["content"])
+        for c in completions
+    ]
+
+    return np.log(mattr_kde(mattrs)).tolist()
