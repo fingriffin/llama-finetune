@@ -35,9 +35,9 @@ def fwf_reward_func(
     if not fwf_kde:
         raise RuntimeError("Failed to load FWF KDE.")
 
-    probs = [
+    fwfs = [
         manager.calculate_fwf(c[0]["content"])
         for c in completions
     ]
 
-    return np.log(fwf_kde(probs)).tolist()
+    return np.log(fwf_kde(fwfs)).tolist()

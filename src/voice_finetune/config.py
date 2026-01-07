@@ -33,6 +33,11 @@ class TRLConfig(BaseModel):
         description="List of weights for stylometric rewards"
     )
 
+    temperature: float = Field(
+        0.7,
+        description="Temperature for sampling when calculating advantages."
+    )
+
 class FinetuneConfig(BaseModel):
     """Configuration for LoRA/QLoRA finetuning."""
 
