@@ -10,6 +10,38 @@ from voice_finetune.distributions import DistributionManager
 # This refers to measurements against the true distribution
 LIKELIHOOD_THRESHOLD = 1e-4
 
+def stylometric_reward_func(
+        completions: list[list[dict[str,str]]],
+        **kwargs: dict
+) -> Any:
+    """
+    Return the stylometric reward for each completion.
+
+    The result is the average of rewards associated with each metric:
+    - Function word frequency (FWF)
+    - Moving average type-token ratio (MATTR)
+
+    The parameter completions has the following structure:
+
+    [
+        [
+            {"role": "assistant", "content": ...},
+            {"role": "assistant", "content": ...},
+            ... continued num_generations times,
+        ]
+    ]
+
+    :param completions: List of completions.
+    :param kwargs: Keyword arguments from trainer.
+    :return: List of stylometric reward values.
+    """
+    _ = kwargs
+
+    fwf_rewards = fwf_reward_func(completions)
+    mattr_rewards = mattr_reward_func(completions)
+
+    return (fwf_rewards + mattr_rewards) / 2
+
 def fwf_reward_func(
         completions: list[list[dict[str,str]]],
         **kwargs: dict
