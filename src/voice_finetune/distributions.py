@@ -13,9 +13,14 @@ from scipy.stats import gaussian_kde
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DISTRIBUTIONS_DIR = ROOT_DIR / "data" / "distributions"
-BASE_COMPLETIONS_FILENAME = "train.jsonl"
-FWF_FILENAME = "fwf.pkl"
-MATTR_FILENAME = "mattr.pkl"
+TRUE_COMPLETIONS_FILENAME = "train.jsonl"
+# TODO: Should be config controlled
+# i.e. we should evaluate against generations of the same base model
+BASE_COMPLETIONS_FILENAME = "base_8b.jsonl"
+FWF_FILENAME_TRUE = "fwf_true.pkl"
+FWF_FILENAME_BASE = "fwf_base.pkl"
+MATTR_FILENAME_TRUE = "mattr_true.pkl"
+MATTR_FILENAME_BASE = "mattr_base.pkl"
 
 # TODO: Move this
 STOP_WORDS = [
@@ -53,13 +58,18 @@ class DistributionManager:
         self.fwf = fwf
         self.mattr = mattr
 
+        self.true_completions: List[dict] = []
         self.base_completions: List[dict] = []
-        self.fwf_kde = None
-        self.mattr_kde = None
+
+        self.fwf_kde_true: gaussian_kde | None = None
+        self.fwf_kde_base: gaussian_kde | None = None
+
+        self.mattr_kde_true: gaussian_kde | None = None
+        self.mattr_kde_base: gaussian_kde | None = None
 
         DISTRIBUTIONS_DIR.mkdir(parents=True, exist_ok=True)
         self.files = self._list_distribution_files()
-        self._load_base_completions()
+        self._load_completions()
 
         if self.fwf:
             self._load_or_create_fwf()
@@ -76,15 +86,27 @@ class DistributionManager:
         """
         return [f for f in DISTRIBUTIONS_DIR.iterdir() if f.is_file()]
 
-    def _load_base_completions(self) -> None:
+    def _load_completions(self) -> None:
         """
-        Load base completions from JSONL. If the file does not exist, create it first.
+        Load static completions from JSONL. If the files do not exist, create them first.
+
+        Static completions refer to the true completions and base model generations.
 
         :return: None
         """
+        true_file = DISTRIBUTIONS_DIR / TRUE_COMPLETIONS_FILENAME
         base_file = DISTRIBUTIONS_DIR / BASE_COMPLETIONS_FILENAME
+        if not true_file.exists():
+            self._save_true_completions()
         if not base_file.exists():
             self._save_base_completions()
+
+        with true_file.open("r", encoding="utf-8") as f:
+            self.true_completions = [
+                json.loads(line)
+                for line in f
+                if line.strip()
+            ]
 
         with base_file.open("r", encoding="utf-8") as f:
             self.base_completions = [
@@ -95,95 +117,142 @@ class DistributionManager:
 
     def _load_or_create_fwf(self) -> None:
         """
-        Load function word frequency KDE if it exists.
+        Load function word frequency KDEs if they exist.
 
-        Otherwise, compute and save it.
+        Otherwise, compute and save them.
 
         :return: None
         """
-        fwf_file = DISTRIBUTIONS_DIR / FWF_FILENAME
-        if fwf_file.exists():
-            with fwf_file.open("rb") as f:
-                self.fwf_kde = pickle.load(f)
+        fwf_file_true = DISTRIBUTIONS_DIR / FWF_FILENAME_TRUE
+        fwf_file_base = DISTRIBUTIONS_DIR / FWF_FILENAME_BASE
+        if fwf_file_true.exists() and fwf_file_base.exists():
+            with fwf_file_true.open("rb") as f:
+                self.fwf_kde_true = pickle.load(f)
+            with fwf_file_base.open("rb") as f:
+                self.fwf_kde_base = pickle.load(f)
         else:
             self._save_fwf_kde()
 
     def _load_or_create_mattr(self) -> None:
         """
-        Load MATTR (Moving average TTR) KDE if it exists.
+        Load MATTR (Moving average TTR) KDEs if they exist.
 
-        Otherwise, compute and save it.
+        Otherwise, compute and save them.
 
         :return: None
         """
-        mattr_file = DISTRIBUTIONS_DIR / FWF_FILENAME
-        if mattr_file.exists():
-            with mattr_file.open("rb") as f:
-                self.mattr_kde = pickle.load(f)
+        mattr_file_true = DISTRIBUTIONS_DIR / MATTR_FILENAME_TRUE
+        mattr_file_base = DISTRIBUTIONS_DIR / MATTR_FILENAME_BASE
+
+        if mattr_file_true.exists() and mattr_file_base.exists():
+            with mattr_file_true.open("rb") as f:
+                self.mattr_kde_true = pickle.load(f)
+
+            with mattr_file_base.open("rb") as f:
+                self.mattr_kde_base = pickle.load(f)
         else:
             self._save_mattr_kde()
 
     @staticmethod
-    def _save_base_completions() -> None:
+    def _save_true_completions() -> None:
         """
-        Save the base completions (train.jsonl) to disk.
+        Save the true completions (train.jsonl) to disk.
 
         :return: None
         """
-        ds = load_dataset("AccelerateScience/bush-dataset", split="train")
-        ds.to_json(DISTRIBUTIONS_DIR / BASE_COMPLETIONS_FILENAME)
+        ds = load_dataset(
+            "AccelerateScience/bush-dataset", # TODO: Config controlled
+            split="train"
+        )
+        ds.to_json(DISTRIBUTIONS_DIR / TRUE_COMPLETIONS_FILENAME)
+
+    @staticmethod
+    def _save_base_completions() -> None:
+        """
+        Save the base completions (base_*.jsonl) to disk.
+
+        * is the number of parameters
+
+        :return: None
+        """
+        ds = load_dataset(
+            "AccelerateScience/bush-dataset", # TODO: Config controlled
+            split="train"
+        )
+        ds.to_json(DISTRIBUTIONS_DIR / TRUE_COMPLETIONS_FILENAME)
 
     def _save_fwf_kde(self) -> None:
         """
-        Compute and save the function word frequency distribution of the base completions.
+        Compute and save the fwf distributions of the static completions.
 
         :return: None
         """
-        fwfs = [
+        fwfs_true = [
+            self.calculate_fwf(c["messages"][2]["content"]) for c in self.true_completions
+        ]
+
+        fwfs_base = [
             self.calculate_fwf(c["messages"][2]["content"]) for c in self.base_completions
         ]
 
-        if not fwfs:
+        if not fwfs_true:
             raise ValueError("No function word frequencies computed. "
-                             "Base completions may be empty.")
+                             "True completions may be empty.")
 
-        # Fit KDE to the scalar FWF values
-        kde = gaussian_kde(np.array(fwfs))
+        if not fwfs_base:
+            raise ValueError("No function word frequencies computed. "
+                             "BASE completions may be empty.")
 
-        # Store in instance
-        self.fwf_kde = kde
+        # Fit KDEs to the scalar FWF values
+        self.fwf_kde_true = gaussian_kde(np.array(fwfs_true))
+        self.fwf_kde_base = gaussian_kde(np.array(fwfs_base))
 
-        # Save KDE to disk
-        fwf_file = DISTRIBUTIONS_DIR / FWF_FILENAME
-        with fwf_file.open("wb") as f:
-            pickle.dump(kde, f)
+        # Save KDEs to disk
+        fwf_file_true = DISTRIBUTIONS_DIR / FWF_FILENAME_TRUE
+        with fwf_file_true.open("wb") as f:
+            pickle.dump(self.fwf_kde_true, f)
+
+        fwf_file_base = DISTRIBUTIONS_DIR / FWF_FILENAME_BASE
+        with fwf_file_base.open("wb") as f:
+            pickle.dump(self.fwf_kde_base, f)
 
     def _save_mattr_kde(self) -> None:
         """
-        Compute and save the MATTR distribution of the base completions.
+        Compute and save the MATTR distributions of the static completions.
 
         :return: None
         """
-        mattrs = [
+        mattrs_true = [
+            self.calculate_mattr(
+                c["messages"][2]["content"])
+            for c in self.true_completions
+        ]
+
+        mattrs_base = [
             self.calculate_mattr(
                 c["messages"][2]["content"])
             for c in self.base_completions
         ]
 
-        if not mattrs:
+        if not mattrs_true:
+            raise ValueError("No MATTR values computed. "
+                             "True completions may be empty.")
+
+        if not mattrs_base:
             raise ValueError("No MATTR values computed. "
                              "Base completions may be empty.")
 
-        # Fit KDE to the scalar FWF values
-        kde = gaussian_kde(np.array(mattrs))
-
-        # Store in instance
-        self.mattr_kde = kde
+        # Fit KDEs to the scalar FWF values
+        self.mattr_kde_true = gaussian_kde(np.array(mattrs_true))
+        self.mattr_kde_base = gaussian_kde(np.array(mattrs_base))
 
         # Save KDE to disk
-        mattr_file = DISTRIBUTIONS_DIR / MATTR_FILENAME
-        with mattr_file.open("wb") as f:
-            pickle.dump(kde, f)
+        mattr_file_true = DISTRIBUTIONS_DIR / MATTR_FILENAME_TRUE
+        mattr_file_base = DISTRIBUTIONS_DIR / MATTR_FILENAME_BASE
+        with mattr_file_true.open("wb") as f:
+            pickle.dump(self.mattr_kde_true, f)
+        with mattr_file_base.open("wb") as f:
+            pickle.dump(self.mattr_kde_base, f)
 
     @staticmethod
     def calculate_fwf(completion: str) -> float:
