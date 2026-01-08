@@ -4,6 +4,7 @@ import json
 import pickle
 import re
 import string
+from collections import Counter
 from pathlib import Path
 from typing import List
 
@@ -14,12 +15,15 @@ from scipy.stats import gaussian_kde
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DISTRIBUTIONS_DIR = ROOT_DIR / "data" / "distributions"
 TRAIN_FILENAME = "train.jsonl"
-# TODO: Should be config controlled
-# i.e. we should evaluate against generations of the same base model
+
 FWF_FILENAME_TRUE = "fwf_true.pkl"
 FWF_FILENAME_BASE = "fwf_base.pkl"
+
 MATTR_FILENAME_TRUE = "mattr_true.pkl"
 MATTR_FILENAME_BASE = "mattr_base.pkl"
+
+HAPAX_FILENAME_TRUE = "hapax_true.pkl"
+HAPAX_FILENAME_BASE = "hapax_base.pkl"
 
 # TODO: Move this
 STOP_WORDS = [
@@ -48,14 +52,18 @@ class DistributionManager:
                  *,
                  fwf: bool = False,
                  mattr: bool = False,
+                 hapax: bool = False,
         ) -> None:
         """
         Initialize the distribution manager.
 
         :param fwf: If True, import function word frequency distribution
+        :param mattr: If True, import MATTR distribution
+        :param hapax: If True, import hapax legomena distribution
         """
         self.fwf = fwf
         self.mattr = mattr
+        self.hapax = hapax
 
         self.true_completions: List[dict] = []
         self.base_completions: List[dict] = []
@@ -66,6 +74,9 @@ class DistributionManager:
         self.mattr_kde_true: gaussian_kde | None = None
         self.mattr_kde_base: gaussian_kde | None = None
 
+        self.hapax_kde_true: gaussian_kde | None = None
+        self.hapax_kde_base: gaussian_kde | None = None
+
         DISTRIBUTIONS_DIR.mkdir(parents=True, exist_ok=True)
         self.files = self._list_distribution_files()
         self._load_completions()
@@ -75,6 +86,9 @@ class DistributionManager:
 
         if self.mattr:
             self._load_or_create_mattr()
+
+        if self.hapax:
+            self._load_or_create_hapax()
 
     @staticmethod
     def _list_distribution_files() -> List[Path]:
@@ -151,6 +165,26 @@ class DistributionManager:
                 self.mattr_kde_base = pickle.load(f)
         else:
             self._save_mattr_kde()
+
+    def _load_or_create_hapax(self) -> None:
+        """
+        Load hapax legomena KDEs if they exist.
+
+        Otherwise, compute and save them.
+
+        :return: None
+        """
+        hapax_file_true = DISTRIBUTIONS_DIR / "true" / HAPAX_FILENAME_TRUE
+        hapax_file_base = DISTRIBUTIONS_DIR / "base" / HAPAX_FILENAME_BASE
+
+        if hapax_file_true.exists() and hapax_file_base.exists():
+            with hapax_file_true.open("rb") as f:
+                self.hapax_kde_true = pickle.load(f)
+
+            with hapax_file_base.open("rb") as f:
+                self.hapax_kde_base = pickle.load(f)
+        else:
+            self._save_hapax_kde()
 
     @staticmethod
     def _save_true_completions() -> None:
@@ -253,6 +287,44 @@ class DistributionManager:
         with mattr_file_base.open("wb") as f:
             pickle.dump(self.mattr_kde_base, f)
 
+    def _save_hapax_kde(self) -> None:
+        """
+        Compute and save the hapax distributions of the static completions.
+
+        :return: None
+        """
+        hapax_true = [
+            self.calculate_hapax(
+                c["messages"][2]["content"])
+            for c in self.true_completions
+        ]
+
+        hapax_base = [
+            self.calculate_hapax(
+                c["messages"][2]["content"])
+            for c in self.base_completions
+        ]
+
+        if not hapax_true:
+            raise ValueError("No hapax legomena values computed. "
+                             "True completions may be empty.")
+
+        if not hapax_base:
+            raise ValueError("No hapax legomena values computed. "
+                             "Base completions may be empty.")
+
+        # Fit KDEs to the scalar hapax values
+        self.hapax_kde_true = gaussian_kde(np.array(hapax_true))
+        self.hapax_kde_base = gaussian_kde(np.array(hapax_base))
+
+        # Save KDE to disk
+        hapax_file_true = DISTRIBUTIONS_DIR / "true" / HAPAX_FILENAME_TRUE
+        hapax_file_base = DISTRIBUTIONS_DIR / "base" / HAPAX_FILENAME_BASE
+        with hapax_file_true.open("wb") as f:
+            pickle.dump(self.hapax_kde_true, f)
+        with hapax_file_base.open("wb") as f:
+            pickle.dump(self.hapax_kde_base, f)
+
     @staticmethod
     def calculate_fwf(completion: str) -> float:
         """
@@ -303,3 +375,21 @@ class DistributionManager:
             )
 
         return float(mattr)
+
+    @staticmethod
+    def calculate_hapax(
+            completion: str,
+    ) -> float:
+        """
+        Compute the hapax legomena frequency of a completion.
+
+        :param completion: a plain text completion of a prompt.
+        :return: hapax legomena frequency of the completion.
+        """
+        words = re.findall(r"\b\w+\b", completion.lower())
+
+        words_no_punct = [word for word in words if word not in string.punctuation]
+
+        hapax = sum(v==1 for v in Counter(words_no_punct).values())
+
+        return hapax / len(words_no_punct) if words_no_punct else 0

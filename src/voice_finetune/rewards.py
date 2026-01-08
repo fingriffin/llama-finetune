@@ -39,8 +39,9 @@ def stylometric_reward_func(
 
     fwf_rewards = fwf_reward_func(completions)
     mattr_rewards = mattr_reward_func(completions)
+    hapax_rewards = hapax_reward_func(completions)
 
-    return (fwf_rewards + mattr_rewards) / 2
+    return (fwf_rewards + mattr_rewards + hapax_rewards) / 3
 
 def fwf_reward_func(
         completions: list[list[dict[str,str]]],
@@ -132,6 +133,56 @@ def mattr_reward_func(
 
     likelihoods_true = mattr_kde_true(mattrs)
     likelihoods_base = mattr_kde_base(mattrs)
+
+    log_ratio = np.log(likelihoods_true) - np.log(likelihoods_base)
+
+    result = np.tanh(log_ratio)
+
+    # Apply threshold
+    result[likelihoods_true < LIKELIHOOD_THRESHOLD] = -1
+
+    return result
+
+def hapax_reward_func(
+        completions: list[list[dict[str,str]]],
+        **kwargs: dict
+) -> Any:
+    """
+    Return the hapax legomena reward for each completion.
+
+    The parameter completions has the following structure:
+
+    [
+        [
+            {"role": "assistant", "content": ...},
+            {"role": "assistant", "content": ...},
+            ... continued num_generations times,
+        ]
+    ]
+
+    :param completions: List of completions.
+    :param kwargs: Keyword arguments from trainer.
+    :return: List of hapax legomena reward values.
+    """
+    _ = kwargs
+
+    manager = DistributionManager(hapax=True)
+
+    hapax_kde_base = manager.hapax_kde_base
+
+    hapax_kde_true = manager.hapax_kde_true
+
+    if not hapax_kde_base or not hapax_kde_true:
+        raise RuntimeError("Failed to load hapax legomena KDE.")
+
+    hapaxs = np.asarray(
+        [
+            manager.calculate_hapax(c[0]["content"])for c in completions
+        ]
+    )
+
+    likelihoods_true = hapax_kde_true(hapaxs)
+    likelihoods_base = hapax_kde_base(hapaxs)
 
     log_ratio = np.log(likelihoods_true) - np.log(likelihoods_base)
 
