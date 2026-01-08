@@ -13,10 +13,9 @@ from scipy.stats import gaussian_kde
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DISTRIBUTIONS_DIR = ROOT_DIR / "data" / "distributions"
-TRUE_COMPLETIONS_FILENAME = "train.jsonl"
+TRAIN_FILENAME = "train.jsonl"
 # TODO: Should be config controlled
 # i.e. we should evaluate against generations of the same base model
-BASE_COMPLETIONS_FILENAME = "base_8b.jsonl"
 FWF_FILENAME_TRUE = "fwf_true.pkl"
 FWF_FILENAME_BASE = "fwf_base.pkl"
 MATTR_FILENAME_TRUE = "mattr_true.pkl"
@@ -94,8 +93,8 @@ class DistributionManager:
 
         :return: None
         """
-        true_file = DISTRIBUTIONS_DIR / TRUE_COMPLETIONS_FILENAME
-        base_file = DISTRIBUTIONS_DIR / BASE_COMPLETIONS_FILENAME
+        true_file = DISTRIBUTIONS_DIR / "true" / TRAIN_FILENAME
+        base_file = DISTRIBUTIONS_DIR / "base" / TRAIN_FILENAME
         if not true_file.exists():
             self._save_true_completions()
         if not base_file.exists():
@@ -123,8 +122,8 @@ class DistributionManager:
 
         :return: None
         """
-        fwf_file_true = DISTRIBUTIONS_DIR / FWF_FILENAME_TRUE
-        fwf_file_base = DISTRIBUTIONS_DIR / FWF_FILENAME_BASE
+        fwf_file_true = DISTRIBUTIONS_DIR / "true" / FWF_FILENAME_TRUE
+        fwf_file_base = DISTRIBUTIONS_DIR / "base" / FWF_FILENAME_BASE
         if fwf_file_true.exists() and fwf_file_base.exists():
             with fwf_file_true.open("rb") as f:
                 self.fwf_kde_true = pickle.load(f)
@@ -141,8 +140,8 @@ class DistributionManager:
 
         :return: None
         """
-        mattr_file_true = DISTRIBUTIONS_DIR / MATTR_FILENAME_TRUE
-        mattr_file_base = DISTRIBUTIONS_DIR / MATTR_FILENAME_BASE
+        mattr_file_true = DISTRIBUTIONS_DIR / "true" / MATTR_FILENAME_TRUE
+        mattr_file_base = DISTRIBUTIONS_DIR / "base" / MATTR_FILENAME_BASE
 
         if mattr_file_true.exists() and mattr_file_base.exists():
             with mattr_file_true.open("rb") as f:
@@ -164,7 +163,7 @@ class DistributionManager:
             "AccelerateScience/bush-dataset", # TODO: Config controlled
             split="train"
         )
-        ds.to_json(DISTRIBUTIONS_DIR / TRUE_COMPLETIONS_FILENAME)
+        ds.to_json(DISTRIBUTIONS_DIR / "true" / TRAIN_FILENAME)
 
     @staticmethod
     def _save_base_completions() -> None:
@@ -176,10 +175,10 @@ class DistributionManager:
         :return: None
         """
         ds = load_dataset(
-            "AccelerateScience/bush-dataset", # TODO: Config controlled
+            "AccelerateScience/bush-base-completions-8b", # TODO: Config controlled
             split="train"
         )
-        ds.to_json(DISTRIBUTIONS_DIR / TRUE_COMPLETIONS_FILENAME)
+        ds.to_json(DISTRIBUTIONS_DIR / "base" / TRAIN_FILENAME)
 
     def _save_fwf_kde(self) -> None:
         """
@@ -208,11 +207,11 @@ class DistributionManager:
         self.fwf_kde_base = gaussian_kde(np.array(fwfs_base))
 
         # Save KDEs to disk
-        fwf_file_true = DISTRIBUTIONS_DIR / FWF_FILENAME_TRUE
+        fwf_file_true = DISTRIBUTIONS_DIR / "true" / FWF_FILENAME_TRUE
         with fwf_file_true.open("wb") as f:
             pickle.dump(self.fwf_kde_true, f)
 
-        fwf_file_base = DISTRIBUTIONS_DIR / FWF_FILENAME_BASE
+        fwf_file_base = DISTRIBUTIONS_DIR / "base" / FWF_FILENAME_BASE
         with fwf_file_base.open("wb") as f:
             pickle.dump(self.fwf_kde_base, f)
 
@@ -242,13 +241,13 @@ class DistributionManager:
             raise ValueError("No MATTR values computed. "
                              "Base completions may be empty.")
 
-        # Fit KDEs to the scalar FWF values
+        # Fit KDEs to the scalar MATTR values
         self.mattr_kde_true = gaussian_kde(np.array(mattrs_true))
         self.mattr_kde_base = gaussian_kde(np.array(mattrs_base))
 
         # Save KDE to disk
-        mattr_file_true = DISTRIBUTIONS_DIR / MATTR_FILENAME_TRUE
-        mattr_file_base = DISTRIBUTIONS_DIR / MATTR_FILENAME_BASE
+        mattr_file_true = DISTRIBUTIONS_DIR / "true" / MATTR_FILENAME_TRUE
+        mattr_file_base = DISTRIBUTIONS_DIR / "base" / MATTR_FILENAME_BASE
         with mattr_file_true.open("wb") as f:
             pickle.dump(self.mattr_kde_true, f)
         with mattr_file_base.open("wb") as f:
