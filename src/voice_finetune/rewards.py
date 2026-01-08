@@ -6,6 +6,9 @@ import numpy as np
 
 from voice_finetune.distributions import DistributionManager
 
+# Threshold likelihood at which minimum reward is given.
+# This refers to measurements against the true distribution
+LIKELIHOOD_THRESHOLD = 1e-4
 
 def fwf_reward_func(
         completions: list[list[dict[str,str]]],
@@ -45,9 +48,17 @@ def fwf_reward_func(
         ]
     )
 
-    return np.tanh(
-        np.log(fwf_kde_true(fwfs)) - np.log(fwf_kde_base(fwfs))
-    ).tolist()
+    likelihoods_true = fwf_kde_true(fwfs)
+    likelihoods_base = fwf_kde_base(fwfs)
+
+    log_ratio = np.log(likelihoods_true) - np.log(likelihoods_base)
+
+    result = np.tanh(log_ratio)
+
+    # Apply threshold
+    result[likelihoods_true < LIKELIHOOD_THRESHOLD] = -1
+
+    return result
 
 def mattr_reward_func(
         completions: list[list[dict[str,str]]],
@@ -85,8 +96,16 @@ def mattr_reward_func(
         [
             manager.calculate_mattr(c[0]["content"])for c in completions
         ]
-    ).tolist()
+    )
 
-    return np.tanh(
-        np.log(mattr_kde_true(mattrs)) - np.log(mattr_kde_base(mattrs))
-    ).tolist()
+    likelihoods_true = mattr_kde_true(mattrs)
+    likelihoods_base = mattr_kde_base(mattrs)
+
+    log_ratio = np.log(likelihoods_true) - np.log(likelihoods_base)
+
+    result = np.tanh(log_ratio)
+
+    # Apply threshold
+    result[likelihoods_true < LIKELIHOOD_THRESHOLD] = -1
+
+    return result
