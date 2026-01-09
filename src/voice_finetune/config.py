@@ -38,6 +38,15 @@ class TRLConfig(BaseModel):
         description="Temperature for GRPO sampling when calculating advantages."
     )
 
+    log_completions: bool | None = Field(
+        False,
+        description="Whether to log completions during training"
+    )
+    num_completions_to_print: int | None = Field(
+        None,
+        description="Number of completions to print"
+    )
+
 class FinetuneConfig(BaseModel):
     """Configuration for LoRA/QLoRA finetuning."""
 
