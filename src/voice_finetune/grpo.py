@@ -45,6 +45,8 @@ def grpo_transform(cfg: Any, *args: Any, **kwargs: Any) -> Callable[..., Any]:
 
         example[PROMPT_KEY] = prompt_messages
 
+        example.pop(MESSAGES_KEY, None)
+
         return example
 
     return transform_fn
