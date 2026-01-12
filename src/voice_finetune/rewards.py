@@ -9,6 +9,7 @@ from voice_finetune.distributions import DistributionManager
 # Threshold likelihood at which minimum reward is given.
 # This refers to measurements against the true distribution
 LIKELIHOOD_THRESHOLD = 1e-4
+EPS = 1e-12
 
 def stylometric_reward_func(
         completions: list[list[dict[str,str]]],
@@ -84,6 +85,9 @@ def fwf_reward_func(
     likelihoods_true = fwf_kde_true(fwfs)
     likelihoods_base = fwf_kde_base(fwfs)
 
+    likelihoods_true = np.maximum(likelihoods_true, EPS)
+    likelihoods_base = np.maximum(likelihoods_base, EPS)
+
     log_ratio = np.log(likelihoods_true) - np.log(likelihoods_base)
 
     result = np.tanh(log_ratio)
@@ -134,6 +138,9 @@ def mattr_reward_func(
     likelihoods_true = mattr_kde_true(mattrs)
     likelihoods_base = mattr_kde_base(mattrs)
 
+    likelihoods_true = np.maximum(likelihoods_true, EPS)
+    likelihoods_base = np.maximum(likelihoods_base, EPS)
+
     log_ratio = np.log(likelihoods_true) - np.log(likelihoods_base)
 
     result = np.tanh(log_ratio)
@@ -183,6 +190,9 @@ def hapax_reward_func(
 
     likelihoods_true = hapax_kde_true(hapaxs)
     likelihoods_base = hapax_kde_base(hapaxs)
+
+    likelihoods_true = np.maximum(likelihoods_true, EPS)
+    likelihoods_base = np.maximum(likelihoods_base, EPS)
 
     log_ratio = np.log(likelihoods_true) - np.log(likelihoods_base)
 
