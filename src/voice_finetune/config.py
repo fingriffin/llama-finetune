@@ -21,7 +21,7 @@ class TRLConfig(BaseModel):
         0.001,
         description="RL beta hyperparameter",
     )
-    max_completion_len: int = Field(
+    max_completion_length: int = Field(
         2048,
         description="Maximum token length of completions during TRL"
     )
