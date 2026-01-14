@@ -42,7 +42,8 @@ class Finetuner:
         self.tokenizer: AutoTokenizer | None = None
         self.tokenizer_dir: str | None = None
 
-        self.train_prefix: str = ""
+        self.vllm_devices: str = ""
+        self.training_devices: str = ""
 
         self.config: FinetuneConfig | None = None
 
@@ -55,66 +56,67 @@ class Finetuner:
 
         :return: None
         """
-        num_vllm_gpus = self.config.vllm.tensor_parallel_size # type: ignore[union-attr]
-
+        num_vllm_gpus = self.config.vllm.tensor_parallel_size  # type: ignore[union-attr]
         num_gpus = torch.cuda.device_count()
 
-        vllm_devices = ",".join(
-            str(i) for i in range(
-                num_gpus - num_vllm_gpus,
-                num_gpus
+        if num_vllm_gpus <= 0 or num_vllm_gpus >= num_gpus:
+            raise ValueError(
+                f"Invalid vLLM GPU count: {num_vllm_gpus} (total GPUs: {num_gpus})"
             )
+
+        # GPUs reserved for vLLM (highest indices)
+        self.vllm_devices = ",".join(
+            str(i) for i in range(num_gpus - num_vllm_gpus, num_gpus)
         )
 
-        training_devices = ",".join(
-            str(i) for i in range(
-                0,
-                num_gpus-num_vllm_gpus,
-            )
+        # GPUs reserved for training (lowest indices)
+        self.training_devices = ",".join(
+            str(i) for i in range(0, num_gpus - num_vllm_gpus)
         )
-
-        self.train_prefix = f"CUDA_VISIBLE_DEVICES={training_devices}"
-
-        setup_cmd = f"CUDA_VISIBLE_DEVICES={vllm_devices} axolotl vllm-serve"
 
         env = os.environ.copy()
+        env["CUDA_VISIBLE_DEVICES"] = self.vllm_devices
 
         subprocess.run(
             [
-                setup_cmd,
-                self.local_config_path # type: ignore[list-item]
+                "axolotl",
+                "vllm-serve",
+                self.local_config_path,  # type: ignore[list-item]
             ],
             check=True,
             env=env,
             cwd=PACKAGE_DIR,
         )
 
-
-
     def train(self) -> None:
         """Start the finetuning process using Axolotl CLI."""
         if not self.local_config_path:
             raise ValueError("axolotl_config_path must be set before training.")
 
+        if not hasattr(self, "train_prefix"):
+            raise RuntimeError("setup_vllm() must be called before train().")
+
         env = os.environ.copy()
+
+        # Apply training GPU visibility
+        env["CUDA_VISIBLE_DEVICES"] = self.training_devices
 
         # Inject wandb variables only if resuming a run
         if self.wandb_run_id:
             env["WANDB_RESUME"] = "must"
             env["WANDB_RUN_ID"] = self.wandb_run_id
 
-            if "WANDB_PROJECT" in os.environ and self.config:
-                env["WANDB_PROJECT"] = self.config.wandb_project
-
-            if "WANDB_ENTITY" in os.environ and self.config:
-                env["WANDB_ENTITY"] = self.config.wandb_entity
+            if self.config:
+                if self.config.wandb_project:
+                    env["WANDB_PROJECT"] = self.config.wandb_project
+                if self.config.wandb_entity:
+                    env["WANDB_ENTITY"] = self.config.wandb_entity
 
         subprocess.run(
             [
-                self.train_prefix,
-                f"{self.train_prefix} axolotl",
+                "axolotl",
                 "train",
-                self.local_config_path
+                self.local_config_path,
             ],
             check=True,
             env=env,
