@@ -75,14 +75,13 @@ class Finetuner:
 
         self.train_prefix = f"CUDA_VISIBLE_DEVICES={training_devices}"
 
+        setup_cmd = f"CUDA_VISIBLE_DEVICES={vllm_devices} axolotl vllm-serve"
+
         env = os.environ.copy()
 
         subprocess.run(
             [
-                "CUDA_VISIBLE_DEVICES=",
-                vllm_devices,
-                "axolotl",
-                "vllm-serve",
+                setup_cmd,
                 self.local_config_path # type: ignore[list-item]
             ],
             check=True,
