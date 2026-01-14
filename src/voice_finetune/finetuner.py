@@ -112,7 +112,7 @@ class Finetuner:
         subprocess.run(
             [
                 self.train_prefix,
-                "axolotl",
+                f"{self.train_prefix} axolotl",
                 "train",
                 self.local_config_path
             ],
