@@ -44,6 +44,11 @@ trl: # Optional configuration for TRL, do not include/leave empty if not using T
   log_completions: False # Whether to log completions during training
   num_completions: # Number of completions to print if log_completions
 
+vllm: # Optional configuration for vLLM, do not include/leave empty if not using (recommended for GRPO)
+
+  tensor_parallel_size: # Tensor parallel size for vLLM, that is the number of gpus used to serve the vLLM engine
+  max_model_len: # Maximum context length for vLLM engine
+
 save_steps: # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps. 0 to only save final model.
 save_strategy: # Set to `no` to skip checkpoint saves, `epoch` at end of each epoch, `best` when better result is achieved, leave empty to infer from `save_steps`
 save_total_limit: # Checkpoints saved at a time
