@@ -4,6 +4,7 @@ import os
 import subprocess
 from pathlib import Path
 
+import torch
 from huggingface_hub import HfApi, snapshot_download
 from loguru import logger
 from peft import PeftModel
@@ -41,10 +42,55 @@ class Finetuner:
         self.tokenizer: AutoTokenizer | None = None
         self.tokenizer_dir: str | None = None
 
+        self.train_prefix: str = ""
+
         self.config: FinetuneConfig | None = None
 
         self._prepare_config()
         self._prepare_tokenizer()
+
+    def setup_vllm(self) -> None:
+        """
+        Set up vLLM engine for fine-tuning.
+
+        :return: None
+        """
+        num_vllm_gpus = self.config.vllm.tensor_parallel_size # type: ignore[union-attr]
+
+        num_gpus = torch.cuda.device_count()
+
+        vllm_devices = ",".join(
+            str(i) for i in range(
+                num_gpus - num_vllm_gpus,
+                num_gpus
+            )
+        )
+
+        training_devices = ",".join(
+            str(i) for i in range(
+                0,
+                num_gpus-num_vllm_gpus,
+            )
+        )
+
+        self.train_prefix = f"CUDA_VISIBLE_DEVICES={training_devices}"
+
+        env = os.environ.copy()
+
+        subprocess.run(
+            [
+                "CUDA_VISIBLE_DEVICES=",
+                vllm_devices,
+                "axolotl",
+                "vllm-serve",
+                self.local_config_path # type: ignore[list-item]
+            ],
+            check=True,
+            env=env,
+            cwd=PACKAGE_DIR,
+        )
+
+
 
     def train(self) -> None:
         """Start the finetuning process using Axolotl CLI."""
@@ -65,7 +111,12 @@ class Finetuner:
                 env["WANDB_ENTITY"] = self.config.wandb_entity
 
         subprocess.run(
-            ["axolotl", "train", self.local_config_path],
+            [
+                self.train_prefix,
+                "axolotl",
+                "train",
+                self.local_config_path
+            ],
             check=True,
             env=env,
             cwd=PACKAGE_DIR,

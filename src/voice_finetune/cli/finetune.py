@@ -35,6 +35,9 @@ def main(
     # Launch axolotl engine
     finetuner = Finetuner(config_path=config_path, wandb_run_id=wandb_run_id)
 
+    if finetuner.config and finetuner.config.vllm:
+        finetuner.setup_vllm()
+
     # Train the model
     finetuner.train()
 

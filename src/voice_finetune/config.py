@@ -25,6 +25,7 @@ class TRLConfig(BaseModel):
         2048,
         description="Maximum token length of completions during TRL"
     )
+    # TODO: Validate that if use_vllm = True, then vllm config exists (and vice versa)
     use_vllm: bool = Field(False, description="Whether to use vLLM during training")
     num_generations: int = Field(4, description="Number of generations to sample")
     reward_funcs: list[str] = Field(..., description="List of stylometric rewards to use")
@@ -55,8 +56,8 @@ class VLLMConfig(BaseModel):
     # port: 8000
     # gpu_memory_utilisation: 0.9
     # dtype: auto
-    tensor_parallel_size: int | None = Field(
-        None,
+    tensor_parallel_size: int = Field(
+        ...,
         description="Tensor parallel size for vLLM",
     )
     max_model_len: int | None = Field(
