@@ -1,7 +1,13 @@
 """Finetuning class for finetuning with Axolotl."""
 
+import json
 import os
+import select
 import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import torch
@@ -56,50 +62,177 @@ class Finetuner:
 
         :return: None
         """
-        num_vllm_gpus = self.config.vllm.tensor_parallel_size  # type: ignore[union-attr]
+        if not getattr(self, "config", None) or not getattr(self.config, "vllm", None):
+            logger.info("vLLM config not present; skipping vLLM setup.")
+            return
+
+        num_vllm_gpus = int(self.config.vllm.tensor_parallel_size or 0)  # type: ignore[union-attr]
         num_gpus = torch.cuda.device_count()
 
-        if num_vllm_gpus <= 0 or num_vllm_gpus >= num_gpus:
+        if num_gpus <= 0:
+            raise RuntimeError("No CUDA GPUs detected; cannot start vLLM.")
+
+        if num_vllm_gpus <= 0:
             raise ValueError(
-                f"Invalid vLLM GPU count: {num_vllm_gpus} (total GPUs: {num_gpus})"
+                f"Invalid vLLM tensor_parallel_size: {num_vllm_gpus} (must be >= 1)."
+            )
+
+        if num_vllm_gpus >= num_gpus:
+            raise ValueError(
+                f"Invalid vLLM GPU count: {num_vllm_gpus} (total GPUs: {num_gpus}). "
+                "Need at least 1 GPU left for training."
             )
 
         # GPUs reserved for vLLM (highest indices)
         self.vllm_devices = ",".join(
             str(i) for i in range(num_gpus - num_vllm_gpus, num_gpus)
         )
+        logger.info(f"Allocating devices {self.vllm_devices} for vLLM")
 
         # GPUs reserved for training (lowest indices)
         self.training_devices = ",".join(
             str(i) for i in range(0, num_gpus - num_vllm_gpus)
         )
+        logger.info(f"Allocating devices {self.training_devices} for training")
 
         env = os.environ.copy()
+
+        # Isolate the vLLM process to only the reserved GPUs
         env["CUDA_VISIBLE_DEVICES"] = self.vllm_devices
 
-        subprocess.run(
-            [
-                "axolotl",
-                "vllm-serve",
-                self.local_config_path,  # type: ignore[list-item]
-            ],
-            check=True,
+        # NCCL stability flags for TP init on cloud/virtualised setups (Runpod etc)
+        env["NCCL_IB_DISABLE"] = "1"  # disable InfiniBand transport
+        env["NCCL_P2P_DISABLE"] = "1"  # disable direct GPU P2P (non NVLink topologies)
+        env["NCCL_SHM_DISABLE"] = "1"  # disable shared memory transport
+
+        # Optional debug
+        # env["NCCL_DEBUG"] = "INFO"
+        # env["VLLM_LOGGING_LEVEL"] = "DEBUG"
+
+        # Pull vLLM launch args from config
+        model_id = str(self.config.base_model) # type: ignore[union-attr]
+        tp_size = int(num_vllm_gpus)
+        gpu_mem_util = float(
+            getattr(self.config.vllm, "gpu_memory_utilization", 0.90) or 0.90)  # type: ignore[union-attr]
+        max_model_len = int(self.config.vllm.max_model_len or 4096)  # type: ignore[union-attr]
+        host = "0.0.0.0"
+        port = 8000
+
+        cmd = [
+            sys.executable,
+            "-m",
+            "vllm.entrypoints.openai.api_server",
+            "--model",
+            model_id,
+            "--tensor-parallel-size",
+            str(tp_size),
+            "--host",
+            host,
+            "--port",
+            str(port),
+            "--gpu-memory-utilization",
+            str(gpu_mem_util),
+            "--max-model-len",
+            str(max_model_len),
+        ]
+        logger.info("Starting external vLLM OpenAI-compatible server process")
+        logger.info("vLLM cmd: %s", " ".join(cmd))
+
+        # Start vLLM as a background process
+        self.vllm_process = subprocess.Popen(
+            cmd,
             env=env,
             cwd=PACKAGE_DIR,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
         )
 
+        ready_url = f"http://127.0.0.1:{port}/v1/models"
+        self.vllm_ready_url = ready_url
+
+        deadline_s = 180.0
+        start = time.time()
+        last_log_line: str | None = None
+
+        while True:
+            if self.vllm_process.poll() is not None:
+                output = ""
+                try:
+                    if self.vllm_process.stdout is not None:
+                        output = self.vllm_process.stdout.read()
+                except Exception:
+                    pass
+                raise RuntimeError(
+                    "vLLM process exited before becoming ready.\n"
+                    f"Last output:\n{output[-4000:]}"
+                )
+
+            try:
+                if self.vllm_process.stdout is not None:
+                    rlist, _, _ = select.select([self.vllm_process.stdout], [], [], 0.0)
+                    if rlist:
+                        line = self.vllm_process.stdout.readline()
+                        if line:
+                            last_log_line = line.rstrip()
+                            logger.debug("[vLLM] %s", last_log_line)
+            except Exception:
+                pass
+
+            # Probe the HTTP endpoint.
+            try:
+                with urllib.request.urlopen(ready_url, timeout=2) as resp:
+                    body = resp.read().decode("utf-8")
+                    payload = json.loads(body)
+                    if isinstance(payload, dict) and payload.get("object") == "list":
+                        logger.info("vLLM server is ready at %s", ready_url)
+                        break
+            except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError):
+                pass
+
+            if (time.time() - start) > deadline_s:
+                raise TimeoutError(
+                    "Timed out waiting for vLLM server readiness.\n"
+                    f"Last vLLM line: {last_log_line}"
+                )
+
+            time.sleep(0.25)
+
     def train(self) -> None:
-        """Start the finetuning process using Axolotl CLI."""
+        """
+        Start the finetuning process using Axolotl CLI.
+
+        :return: None
+        """
         if not self.local_config_path:
             raise ValueError("axolotl_config_path must be set before training.")
 
-        if not hasattr(self, "train_prefix"):
-            raise RuntimeError("setup_vllm() must be called before train().")
-
         env = os.environ.copy()
 
-        # Apply training GPU visibility
-        env["CUDA_VISIBLE_DEVICES"] = self.training_devices
+        # If vLLM configured/started, isolate training GPUs
+        # If vLLM not configured/started, leave CUDA_VISIBLE_DEVICES unchanged
+        vllm_enabled = bool(
+            getattr(self, "config", None) and getattr(self.config, "vllm", None)
+        )
+        vllm_started = bool(getattr(self, "vllm_process", None))
+
+        if vllm_enabled and vllm_started:
+            # Ensure vLLM is still alive
+            if self.vllm_process.poll() is not None:
+                raise RuntimeError(
+                    "vLLM process is not running (it exited before training started)."
+                )
+
+            # Apply training GPU visibility
+            env["CUDA_VISIBLE_DEVICES"] = getattr(self, "training_devices", "")
+
+            train_num_procs = len(self.training_devices.split(",")) \
+                if getattr(self, "training_devices", "")\
+                else 1
+            extra_args = ["--num_processes", str(train_num_procs)]
+        else:
+            extra_args = []
 
         # Inject wandb variables only if resuming a run
         if self.wandb_run_id:
@@ -117,6 +250,7 @@ class Finetuner:
                 "axolotl",
                 "train",
                 self.local_config_path,
+                *extra_args,
             ],
             check=True,
             env=env,

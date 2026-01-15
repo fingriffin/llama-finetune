@@ -26,7 +26,6 @@ class TRLConfig(BaseModel):
         description="Maximum token length of completions during TRL"
     )
     # TODO: Validate that if use_vllm = True, then vllm config exists (and vice versa)
-    use_vllm: bool = Field(False, description="Whether to use vLLM during training")
     num_generations: int = Field(4, description="Number of generations to sample")
     reward_funcs: list[str] = Field(..., description="List of stylometric rewards to use")
     reward_weights: list[float] = Field(
@@ -48,20 +47,31 @@ class TRLConfig(BaseModel):
         description="Number of completions to print"
     )
 
+    # vLLM settings
+    use_vllm: bool = Field(False, description="Whether to use vLLM during training")
+    vllm_mode: str | None = Field("server", description="vLLM mode")
+    vllm_server_host: str | None = Field(
+        "127.0.0.1",
+        description="vLLM server host"
+    )
+
 class VLLMConfig(BaseModel):
     """Configuration for vLLM engine."""
 
     # Defaults for following fields enforced by axolotl's config validator
-    # host: 0.0.0.0
     # port: 8000
     # gpu_memory_utilisation: 0.9
     # dtype: auto
+    host: str | None = Field(
+        "127.0.0.1",
+        description="vLLM server host"
+    )
     tensor_parallel_size: int = Field(
         ...,
         description="Tensor parallel size for vLLM",
     )
-    max_model_len: int | None = Field(
-        None,
+    max_model_len: int = Field(
+        ...,
         description="Maximum context length for vLLM",
     )
 

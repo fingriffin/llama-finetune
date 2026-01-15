@@ -36,7 +36,6 @@ trl: # Optional configuration for TRL, do not include/leave empty if not using T
 
   beta: 0.001 # RL beta hyperparameter
   max_completion_length: 2048 # Maximum token length of completions during TRL
-  use_vllm: false # Whether to use vLLM during training
   num_generations: 4 # Number of generations to sample from
   reward_funcs: # List of reward to use during training
   reward_weights: # List of reward weights
@@ -44,8 +43,13 @@ trl: # Optional configuration for TRL, do not include/leave empty if not using T
   log_completions: False # Whether to log completions during training
   num_completions: # Number of completions to print if log_completions
 
+  use_vllm: false # Whether to use vLLM during training
+  vllm_mode: server # Mode to run vLLM server in - do not change
+  vllm_server_host: 127.0.0.1 # Local host for vLLM server - do not change
+
 vllm: # Optional configuration for vLLM, do not include/leave empty if not using (recommended for GRPO)
 
+  host: 127.0.0.1 # Local host for vLLM server - do not change
   tensor_parallel_size: # Tensor parallel size for vLLM, that is the number of gpus used to serve the vLLM engine
   max_model_len: # Maximum context length for vLLM engine
 
