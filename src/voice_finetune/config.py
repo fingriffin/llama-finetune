@@ -96,7 +96,6 @@ class FinetuneConfig(BaseModel):
     gradient_accumulation_steps: int = Field(4, description="No. of accumulation steps")
     gradient_checkpointing: bool = Field(False, description="Use gradient checkpointing")
     flash_attention: bool = Field(False, description="Use flash attention if available")
-    tensor_parallel_size: int = Field(1, description="Tensor parallel size for training")
 
     lora_r: int = Field(8, description="LoRA rank")
     lora_alpha: int = Field(16, description="LoRA alpha")

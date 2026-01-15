@@ -21,7 +21,6 @@ sequence_len: 512 # Maximum input length to fine-tune with
 gradient_accumulation_steps: 1 # Gradient accumulation steps
 gradient_checkpointing: False # Whether to use gradient checkpointing
 flash_attention: # Whether to use flash attention
-tensor_parallel_size: 1 # Tensor parallel size for training
 
 lora_r: # LoRA rank
 lora_alpha: # LoRA alpha
