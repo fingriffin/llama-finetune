@@ -4,7 +4,6 @@ import json
 import os
 import select
 import subprocess
-import sys
 import time
 import urllib.error
 import urllib.request
@@ -119,17 +118,16 @@ class Finetuner:
         port = 8000
 
         cmd = [
-            sys.executable,
-            "-m",
-            "vllm.entrypoints.openai.api_server",
+            "trl",
+            "vllm-serve",
             "--model",
             model_id,
             "--tensor-parallel-size",
             str(tp_size),
-            "--host",
-            host,
             "--port",
             str(port),
+            "--host",
+            host,
             "--gpu-memory-utilization",
             str(gpu_mem_util),
             "--max-model-len",
