@@ -1,6 +1,5 @@
 """Finetuning class for finetuning with Axolotl."""
 
-import json
 import os
 import select
 import subprocess
@@ -154,6 +153,14 @@ class Finetuner:
         start = time.time()
         last_log_line: str | None = None
 
+        # Probe a small set of common readiness endpoints
+        ready_urls = [
+            f"http://127.0.0.1:{port}/openapi.json",
+            f"http://127.0.0.1:{port}/docs",
+            f"http://127.0.0.1:{port}/health",
+            f"http://127.0.0.1:{port}/v1/models",
+        ]
+
         while True:
             if self.vllm_process.poll() is not None:
                 output = ""
@@ -178,16 +185,21 @@ class Finetuner:
             except Exception:
                 pass
 
-            # Probe the HTTP endpoint.
-            try:
-                with urllib.request.urlopen(ready_url, timeout=2) as resp:
-                    body = resp.read().decode("utf-8")
-                    payload = json.loads(body)
-                    if isinstance(payload, dict) and payload.get("object") == "list":
-                        logger.info("vLLM server is ready at %s", ready_url)
-                        break
-            except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError):
-                pass
+            # Treat any HTTP 200 as signal that server is up
+            is_ready = False
+            for url in ready_urls:
+                try:
+                    with urllib.request.urlopen(url, timeout=2) as resp:
+                        if resp.status == 200:
+                            logger.info("vLLM server is ready at %s", url)
+                            self.vllm_ready_url = url
+                            is_ready = True
+                            break
+                except (urllib.error.URLError, urllib.error.HTTPError):
+                    continue
+
+            if is_ready:
+                break
 
             if (time.time() - start) > deadline_s:
                 raise TimeoutError(
