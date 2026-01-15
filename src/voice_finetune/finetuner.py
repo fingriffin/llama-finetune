@@ -227,10 +227,12 @@ class Finetuner:
             # Apply training GPU visibility
             env["CUDA_VISIBLE_DEVICES"] = getattr(self, "training_devices", "")
 
-            train_num_procs = len(self.training_devices.split(",")) \
-                if getattr(self, "training_devices", "")\
-                else 1
-            extra_args = ["--num_processes", str(train_num_procs)]
+            # TODO: Use tensor parallelism for training, cf. issue #18
+            # train_num_procs = len(self.training_devices.split(",")) \
+            #     if getattr(self, "training_devices", "")\
+            #     else 1
+            # extra_args = ["--num_processes", str(train_num_procs)]
+            extra_args = [] # type: ignore[var-annotated]
         else:
             extra_args = []
 
