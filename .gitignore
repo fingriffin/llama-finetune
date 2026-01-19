@@ -56,12 +56,11 @@ htmlcov/
 # Project specific
 data/**
 !data/
-!data/.gitkeep
 
 configs/*
 !configs/example.yaml
 
 models/*
 
-llama-finetune.zip
-
+notebooks/**
+!notebooks/
