@@ -21,7 +21,7 @@ class TRLConfig(BaseModel):
         0.001,
         description="RL beta hyperparameter",
     )
-    max_completion_len: int = Field(
+    max_completion_length: int = Field(
         2048,
         description="Maximum token length of completions during TRL"
     )
@@ -31,6 +31,20 @@ class TRLConfig(BaseModel):
     reward_weights: list[float] = Field(
         ...,
         description="List of weights for stylometric rewards"
+    )
+
+    temperature: float = Field(
+        0.7,
+        description="Temperature for GRPO sampling when calculating advantages."
+    )
+
+    log_completions: bool | None = Field(
+        False,
+        description="Whether to log completions during training"
+    )
+    num_completions_to_print: int | None = Field(
+        None,
+        description="Number of completions to print"
     )
 
 class FinetuneConfig(BaseModel):
@@ -94,8 +108,8 @@ class FinetuneConfig(BaseModel):
         ...,
         description="Validation datasets to use"
     )
-    eval_steps: int | None = Field(
-        1,
+    eval_steps: int | float | None = Field(
+        None,
         description="How often to run validation, in steps"
     )
 

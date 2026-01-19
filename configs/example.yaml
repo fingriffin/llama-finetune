@@ -35,11 +35,14 @@ rl: # Type of RL to use, do not include/eave empty if not using TRL
 trl: # Optional configuration for TRL, do not include/leave empty if not using TRL
 
   beta: 0.001 # RL beta hyperparameter
-  max_completion_len: 2048 # Maximum token length of completions during TRL
+  max_completion_length: 2048 # Maximum token length of completions during TRL
   use_vllm: false # Whether to use vLLM during training
   num_generations: 4 # Number of generations to sample from
   reward_funcs: # List of reward to use during training
   reward_weights: # List of reward weights
+  temperature: 0.7 # Temperature for GRPO sampling when calculating advantages
+  log_completions: False # Whether to log completions during training
+  num_completions: # Number of completions to print if log_completions
 
 save_steps: # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps. 0 to only save final model.
 save_strategy: # Set to `no` to skip checkpoint saves, `epoch` at end of each epoch, `best` when better result is achieved, leave empty to infer from `save_steps`
