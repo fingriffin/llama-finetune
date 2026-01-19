@@ -6,10 +6,9 @@ import numpy as np
 
 from voice_finetune.distributions import DistributionManager
 
-# Threshold likelihood at which minimum reward is given.
-# This refers to measurements against the true distribution
-LIKELIHOOD_THRESHOLD = 1e-4
-EPS = 1e-12
+# Threshold CDF at which minimum reward is given.
+# This refers to measurements against the base distribution
+CDF_THRESHOLD = 0.01
 
 def stylometric_reward_func(
         completions: list[list[dict[str,str]]],
@@ -69,31 +68,22 @@ def fwf_reward_func(
 
     manager = DistributionManager(fwf=True)
 
-    fwf_kde_base = manager.fwf_kde_base
-
-    fwf_kde_true = manager.fwf_kde_true
-
-    if not fwf_kde_true or not fwf_kde_base:
-        raise RuntimeError("Failed to load FWF KDEs.")
-
     fwfs = np.asarray(
         [
             manager.calculate_fwf(c[0]["content"])for c in completions
         ]
     )
 
-    likelihoods_true = fwf_kde_true(fwfs)
-    likelihoods_base = fwf_kde_base(fwfs)
+    u_true = manager.fwf_true_cdf(fwfs)
+    u_base = manager.fwf_base_cdf(fwfs)
 
-    likelihoods_true = np.maximum(likelihoods_true, EPS)
-    likelihoods_base = np.maximum(likelihoods_base, EPS)
+    # True centrality -> [-1, 1]
+    c_true = 1.0 - 2.0 * np.abs(u_true - 0.5)
+    result = 2.0 * c_true - 1.0
 
-    log_ratio = np.log(likelihoods_true) - np.log(likelihoods_base)
-
-    result = np.tanh(log_ratio)
-
-    # Apply threshold
-    result[likelihoods_true < LIKELIHOOD_THRESHOLD] = -1
+    # Forbid extreme OOD
+    bad = (u_base < CDF_THRESHOLD) | (u_base > 1.0 - CDF_THRESHOLD)
+    result[bad] = -1.0
 
     return result
 
@@ -122,31 +112,22 @@ def mattr_reward_func(
 
     manager = DistributionManager(mattr=True)
 
-    mattr_kde_base = manager.mattr_kde_base
-
-    mattr_kde_true = manager.mattr_kde_true
-
-    if not mattr_kde_base or not mattr_kde_true:
-        raise RuntimeError("Failed to load MATTR KDE.")
-
     mattrs = np.asarray(
         [
             manager.calculate_mattr(c[0]["content"])for c in completions
         ]
     )
 
-    likelihoods_true = mattr_kde_true(mattrs)
-    likelihoods_base = mattr_kde_base(mattrs)
+    u_true = manager.mattr_true_cdf(mattrs)
+    u_base = manager.mattr_base_cdf(mattrs)
 
-    likelihoods_true = np.maximum(likelihoods_true, EPS)
-    likelihoods_base = np.maximum(likelihoods_base, EPS)
+    # True centrality -> [-1, 1]
+    c_true = 1.0 - 2.0 * np.abs(u_true - 0.5)
+    result = 2.0 * c_true - 1.0
 
-    log_ratio = np.log(likelihoods_true) - np.log(likelihoods_base)
-
-    result = np.tanh(log_ratio)
-
-    # Apply threshold
-    result[likelihoods_true < LIKELIHOOD_THRESHOLD] = -1
+    # Forbid extreme OOD
+    bad = (u_base < CDF_THRESHOLD) | (u_base > 1.0 - CDF_THRESHOLD)
+    result[bad] = -1.0
 
     return result
 
@@ -175,30 +156,21 @@ def hapax_reward_func(
 
     manager = DistributionManager(hapax=True)
 
-    hapax_kde_base = manager.hapax_kde_base
-
-    hapax_kde_true = manager.hapax_kde_true
-
-    if not hapax_kde_base or not hapax_kde_true:
-        raise RuntimeError("Failed to load hapax legomena KDE.")
-
     hapaxs = np.asarray(
         [
             manager.calculate_hapax(c[0]["content"])for c in completions
         ]
     )
 
-    likelihoods_true = hapax_kde_true(hapaxs)
-    likelihoods_base = hapax_kde_base(hapaxs)
+    u_true = manager.hapax_true_cdf(hapaxs)
+    u_base = manager.hapax_base_cdf(hapaxs)
 
-    likelihoods_true = np.maximum(likelihoods_true, EPS)
-    likelihoods_base = np.maximum(likelihoods_base, EPS)
+    # True centrality -> [-1, 1]
+    c_true = 1.0 - 2.0 * np.abs(u_true - 0.5)
+    result = 2.0 * c_true - 1.0
 
-    log_ratio = np.log(likelihoods_true) - np.log(likelihoods_base)
-
-    result = np.tanh(log_ratio)
-
-    # Apply threshold
-    result[likelihoods_true < LIKELIHOOD_THRESHOLD] = -1
+    # Forbid extreme OOD
+    bad = (u_base < CDF_THRESHOLD) | (u_base > 1.0 - CDF_THRESHOLD)
+    result[bad] = -1.0
 
     return result

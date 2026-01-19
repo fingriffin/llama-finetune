@@ -10,7 +10,6 @@ from typing import List
 
 import numpy as np
 from datasets import load_dataset
-from scipy.stats import gaussian_kde
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DISTRIBUTIONS_DIR = ROOT_DIR / "data" / "distributions"
@@ -68,14 +67,14 @@ class DistributionManager:
         self.true_completions: List[dict] = []
         self.base_completions: List[dict] = []
 
-        self.fwf_kde_true: gaussian_kde | None = None
-        self.fwf_kde_base: gaussian_kde | None = None
+        self.fwf_true_sorted: np.ndarray | None = None
+        self.fwf_base_sorted: np.ndarray | None = None
 
-        self.mattr_kde_true: gaussian_kde | None = None
-        self.mattr_kde_base: gaussian_kde | None = None
+        self.mattr_true_sorted: np.ndarray | None = None
+        self.mattr_base_sorted: np.ndarray | None = None
 
-        self.hapax_kde_true: gaussian_kde | None = None
-        self.hapax_kde_base: gaussian_kde | None = None
+        self.hapax_true_sorted: np.ndarray | None = None
+        self.hapax_base_sorted: np.ndarray | None = None
 
         DISTRIBUTIONS_DIR.mkdir(parents=True, exist_ok=True)
         self.files = self._list_distribution_files()
@@ -130,7 +129,7 @@ class DistributionManager:
 
     def _load_or_create_fwf(self) -> None:
         """
-        Load function word frequency KDEs if they exist.
+        Load function word frequency empirical CDFs if they exist.
 
         Otherwise, compute and save them.
 
@@ -140,15 +139,15 @@ class DistributionManager:
         fwf_file_base = DISTRIBUTIONS_DIR / "base" / FWF_FILENAME_BASE
         if fwf_file_true.exists() and fwf_file_base.exists():
             with fwf_file_true.open("rb") as f:
-                self.fwf_kde_true = pickle.load(f)
+                self.fwf_true_sorted = pickle.load(f)
             with fwf_file_base.open("rb") as f:
-                self.fwf_kde_base = pickle.load(f)
+                self.fwf_base_sorted = pickle.load(f)
         else:
-            self._save_fwf_kde()
+            self._save_fwf_cdf()
 
     def _load_or_create_mattr(self) -> None:
         """
-        Load MATTR (Moving average TTR) KDEs if they exist.
+        Load MATTR (Moving average TTR) empirical CDFs if they exist.
 
         Otherwise, compute and save them.
 
@@ -159,16 +158,16 @@ class DistributionManager:
 
         if mattr_file_true.exists() and mattr_file_base.exists():
             with mattr_file_true.open("rb") as f:
-                self.mattr_kde_true = pickle.load(f)
+                self.mattr_true_sorted = pickle.load(f)
 
             with mattr_file_base.open("rb") as f:
-                self.mattr_kde_base = pickle.load(f)
+                self.mattr_base_sorted = pickle.load(f)
         else:
-            self._save_mattr_kde()
+            self._save_mattr_cdf()
 
     def _load_or_create_hapax(self) -> None:
         """
-        Load hapax legomena KDEs if they exist.
+        Load hapax legomena empirical CDFs if they exist.
 
         Otherwise, compute and save them.
 
@@ -179,12 +178,12 @@ class DistributionManager:
 
         if hapax_file_true.exists() and hapax_file_base.exists():
             with hapax_file_true.open("rb") as f:
-                self.hapax_kde_true = pickle.load(f)
+                self.hapax_true_sorted = pickle.load(f)
 
             with hapax_file_base.open("rb") as f:
-                self.hapax_kde_base = pickle.load(f)
+                self.hapax_base_sorted = pickle.load(f)
         else:
-            self._save_hapax_kde()
+            self._save_hapax_cdf()
 
     @staticmethod
     def _save_true_completions() -> None:
@@ -214,7 +213,7 @@ class DistributionManager:
         )
         ds.to_json(DISTRIBUTIONS_DIR / "base" / TRAIN_FILENAME)
 
-    def _save_fwf_kde(self) -> None:
+    def _save_fwf_cdf(self) -> None:
         """
         Compute and save the fwf distributions of the static completions.
 
@@ -236,20 +235,18 @@ class DistributionManager:
             raise ValueError("No function word frequencies computed. "
                              "BASE completions may be empty.")
 
-        # Fit KDEs to the scalar FWF values
-        self.fwf_kde_true = gaussian_kde(np.array(fwfs_true))
-        self.fwf_kde_base = gaussian_kde(np.array(fwfs_base))
+        self.fwf_true_sorted = np.sort(np.asarray(fwfs_true, dtype=np.float64))
+        self.fwf_base_sorted = np.sort(np.asarray(fwfs_base, dtype=np.float64))
 
-        # Save KDEs to disk
         fwf_file_true = DISTRIBUTIONS_DIR / "true" / FWF_FILENAME_TRUE
         with fwf_file_true.open("wb") as f:
-            pickle.dump(self.fwf_kde_true, f)
+            pickle.dump(self.fwf_true_sorted, f)
 
         fwf_file_base = DISTRIBUTIONS_DIR / "base" / FWF_FILENAME_BASE
         with fwf_file_base.open("wb") as f:
-            pickle.dump(self.fwf_kde_base, f)
+            pickle.dump(self.fwf_base_sorted, f)
 
-    def _save_mattr_kde(self) -> None:
+    def _save_mattr_cdf(self) -> None:
         """
         Compute and save the MATTR distributions of the static completions.
 
@@ -275,19 +272,17 @@ class DistributionManager:
             raise ValueError("No MATTR values computed. "
                              "Base completions may be empty.")
 
-        # Fit KDEs to the scalar MATTR values
-        self.mattr_kde_true = gaussian_kde(np.array(mattrs_true))
-        self.mattr_kde_base = gaussian_kde(np.array(mattrs_base))
+        self.mattr_true_sorted = np.sort(np.asarray(mattrs_true, dtype=np.float64))
+        self.mattr_base_sorted = np.sort(np.asarray(mattrs_base, dtype=np.float64))
 
-        # Save KDE to disk
         mattr_file_true = DISTRIBUTIONS_DIR / "true" / MATTR_FILENAME_TRUE
         mattr_file_base = DISTRIBUTIONS_DIR / "base" / MATTR_FILENAME_BASE
         with mattr_file_true.open("wb") as f:
-            pickle.dump(self.mattr_kde_true, f)
+            pickle.dump(self.mattr_true_sorted, f)
         with mattr_file_base.open("wb") as f:
-            pickle.dump(self.mattr_kde_base, f)
+            pickle.dump(self.mattr_base_sorted, f)
 
-    def _save_hapax_kde(self) -> None:
+    def _save_hapax_cdf(self) -> None:
         """
         Compute and save the hapax distributions of the static completions.
 
@@ -313,17 +308,105 @@ class DistributionManager:
             raise ValueError("No hapax legomena values computed. "
                              "Base completions may be empty.")
 
-        # Fit KDEs to the scalar hapax values
-        self.hapax_kde_true = gaussian_kde(np.array(hapax_true))
-        self.hapax_kde_base = gaussian_kde(np.array(hapax_base))
+        self.hapax_true_sorted = np.sort(np.asarray(hapax_true, dtype=np.float64))
+        self.hapax_base_sorted = np.sort(np.asarray(hapax_base, dtype=np.float64))
 
-        # Save KDE to disk
         hapax_file_true = DISTRIBUTIONS_DIR / "true" / HAPAX_FILENAME_TRUE
         hapax_file_base = DISTRIBUTIONS_DIR / "base" / HAPAX_FILENAME_BASE
         with hapax_file_true.open("wb") as f:
-            pickle.dump(self.hapax_kde_true, f)
+            pickle.dump(self.hapax_true_sorted, f)
         with hapax_file_base.open("wb") as f:
-            pickle.dump(self.hapax_kde_base, f)
+            pickle.dump(self.hapax_base_sorted, f)
+
+    def fwf_true_cdf(self, x: np.ndarray) -> np.ndarray:
+        """
+        Compute the empirical CDF value(s) for function word frequency (true).
+
+        :param x: 1D array of scalar function word frequency values.
+        :return: 1D array of empirical CDF values in [0, 1].
+        """
+        if self.fwf_true_sorted is None:
+            raise RuntimeError("FWF true distribution not loaded.")
+
+        xs = np.asarray(x, dtype=np.float64)
+        return np.searchsorted(
+            self.fwf_true_sorted, xs, side="right"
+        ) / len(self.fwf_true_sorted)
+
+    def fwf_base_cdf(self, x: np.ndarray) -> np.ndarray:
+        """
+        Compute the empirical CDF value(s) for function word frequency (base).
+
+        :param x: 1D array of scalar function word frequency values.
+        :return: 1D array of empirical CDF values in [0, 1].
+        """
+        if self.fwf_base_sorted is None:
+            raise RuntimeError("FWF base distribution not loaded.")
+
+        xs = np.asarray(x, dtype=np.float64)
+        return np.searchsorted(
+            self.fwf_base_sorted, xs, side="right"
+        ) / len(self.fwf_base_sorted)
+
+    def mattr_true_cdf(self, x: np.ndarray) -> np.ndarray:
+        """
+        Compute the empirical CDF value(s) for MATTR (true).
+
+        :param x: 1D array of scalar MATTR values.
+        :return: 1D array of empirical CDF values in [0, 1].
+        """
+        if self.mattr_true_sorted is None:
+            raise RuntimeError("MATTR true distribution not loaded.")
+
+        xs = np.asarray(x, dtype=np.float64)
+        return np.searchsorted(
+            self.mattr_true_sorted, xs, side="right"
+        ) / len(self.mattr_true_sorted)
+
+    def mattr_base_cdf(self, x: np.ndarray) -> np.ndarray:
+        """
+        Compute the empirical CDF value(s) for MATTR (base).
+
+        :param x: 1D array of scalar MATTR values.
+        :return: 1D array of empirical CDF values in [0, 1].
+        """
+        if self.mattr_base_sorted is None:
+            raise RuntimeError("MATTR base distribution not loaded.")
+
+        xs = np.asarray(x, dtype=np.float64)
+        return np.searchsorted(
+            self.mattr_base_sorted, xs, side="right"
+        ) / len(self.mattr_base_sorted)
+
+    def hapax_true_cdf(self, x: np.ndarray) -> np.ndarray:
+        """
+        Compute the empirical CDF value(s) for hapax legomena frequency (true).
+
+        :param x: 1D array of scalar hapax legomena frequency values.
+        :return: 1D array of empirical CDF values in [0, 1].
+        """
+        if self.hapax_true_sorted is None:
+            raise RuntimeError("Hapax true distribution not loaded.")
+
+        xs = np.asarray(x, dtype=np.float64)
+        return np.searchsorted(
+            self.hapax_true_sorted, xs, side="right"
+        ) / len(self.hapax_true_sorted)
+
+    def hapax_base_cdf(self, x: np.ndarray) -> np.ndarray:
+        """
+        Compute the empirical CDF value(s) for hapax legomena frequency (base).
+
+        :param x: 1D array of scalar hapax legomena frequency values.
+        :return: 1D array of empirical CDF values in [0, 1].
+        """
+        if self.hapax_base_sorted is None:
+            raise RuntimeError("Hapax base distribution not loaded.")
+
+        xs = np.asarray(x, dtype=np.float64)
+        return np.searchsorted(
+            self.hapax_base_sorted, xs, side="right"
+        ) / len(self.hapax_base_sorted)
 
     @staticmethod
     def calculate_fwf(completion: str) -> float:
