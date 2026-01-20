@@ -5,43 +5,77 @@ from typing import Any
 import numpy as np
 
 from voice_finetune.distributions import DistributionManager
+from voice_finetune.reward_manager import RewardManager
 
 # Threshold CDF at which minimum reward is given.
 # This refers to measurements against the base distribution
 CDF_THRESHOLD = 0.01
 
+# Alpha value for stylometric reward function (inverse temperature)
+ALPHA = 2
+
 def stylometric_reward_func(
+        prompts: list[list[dict[str,str]]],
         completions: list[list[dict[str,str]]],
         **kwargs: dict
 ) -> Any:
     """
     Return the stylometric reward for each completion.
 
-    The result is the average of rewards associated with each metric:
-    - Function word frequency (FWF)
-    - Moving average type-token ratio (MATTR)
+    The reward depends on the L1 distance (d) between the
+    style vectors of the generated and true completions:
+
+    R = 2 * exp(-alpha*d) - 1
+
+    The parameter prompts has the following structure:
+
+    prompts = [
+        [ {"role": "user", "content": "..."}, ],
+        [ {"role": "user", "content": "..."}, ],
+        [ {"role": "user", "content": "..."}, ],
+        ... repeated num_generations times
+    ]
 
     The parameter completions has the following structure:
 
-    [
-        [
-            {"role": "assistant", "content": ...},
-            {"role": "assistant", "content": ...},
-            ... continued num_generations times,
-        ]
+    completions = [
+        [ {"role": "assistant", "content": "..."}, ],
+        [ {"role": "assistant", "content": "..."}, ],
+        [ {"role": "assistant", "content": "..."}, ],
+        ... repeated num_generations times
     ]
 
+    :param prompts: List of prompts.
     :param completions: List of completions.
     :param kwargs: Keyword arguments from trainer.
     :return: List of stylometric reward values.
     """
     _ = kwargs
 
-    fwf_rewards = fwf_reward_func(completions)
-    mattr_rewards = mattr_reward_func(completions)
-    hapax_rewards = hapax_reward_func(completions)
+    manager = RewardManager()
 
-    return (fwf_rewards + mattr_rewards + hapax_rewards) / 3
+    style_vectors = [
+        manager.calculate_style_vector(c[0]["content"]) for c in completions
+    ]
+
+    true_completions = [
+        manager.get_true_completion(p[0]["content"]) for p in prompts
+    ]
+
+    true_style_vectors = [
+        manager.calculate_style_vector(c) for c in true_completions
+    ]
+
+    # L1 distances
+    distances = [
+        np.sum(np.abs(style_vectors[i] - true_style_vectors[i]))
+        for i in range(len(style_vectors))
+    ]
+
+    return [
+        2.0 * np.exp(-ALPHA * d) - 1.0
+        for d in distances
+    ]
 
 def fwf_reward_func(
         completions: list[list[dict[str,str]]],
