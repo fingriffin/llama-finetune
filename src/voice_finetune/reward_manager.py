@@ -1,17 +1,41 @@
-"""Module for fast true completion lookups and reward calculation."""
+"""Module for fast true completion lookups and reward calculation utils."""
 
 import json
+import re
+import string
+from collections import Counter
 from pathlib import Path
 from typing import List
 
+import numpy as np
 from datasets import load_dataset
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT_DIR / "data"
 TRAIN_FILENAME = "train.jsonl"
 
+# TODO: Move this
+STOP_WORDS = [
+    "i", "me", "my", "myself", "we", "our", "ours", "ourselves",
+    "you", "your", "yours", "yourself", "yourselves", "he", "him",
+    "his", "himself", "she", "her", "hers", "herself", "it", "its",
+    "itself", "they", "them", "their", "theirs", "themselves",
+    "what", "which", "who", "whom", "this", "that", "these", "those",
+    "am", "is", "are", "was", "were", "be", "been", "being", "have",
+    "has", "had", "having", "do", "does", "did", "doing", "a", "an",
+    "the", "and", "but", "if", "or", "because", "as", "until",
+    "while", "of", "at", "by", "for", "with", "about", "against",
+    "between", "into", "through", "during", "before", "after",
+    "above", "below", "to", "from", "up", "down", "in", "out", "on",
+    "off", "over", "under", "again", "further", "then", "once", "here",
+    "there", "when", "where", "why", "how", "all", "any", "both", "each",
+    "few", "more", "most", "other", "some", "such", "no", "nor", "not",
+    "only", "own", "same", "so", "than", "too", "very", "s", "t", "can",
+    "will", "just", "don", "should", "now"
+]
+
 class RewardManager:
-    """Class for fast true completion lookups and reward calculation."""
+    """Class for fast true completion lookups and reward calculation utils."""
 
     def __init__(
             self
@@ -102,3 +126,91 @@ class RewardManager:
 
         raise KeyError("No true completion found for given prompt.")
 
+    def calculate_style_vector(self, completion: str) -> np.ndarray:
+        """
+        Calculate style vector of a given completion.
+
+        The style vector is a 3-dimensional vector with elements:
+        - Function/stop word frequency (FWF)
+        - Moving average token type ratio (MATTR)
+        - Hapax legomena frequency
+
+        :param completion: completion to calculate style vector for
+        :return: style vector (3-dimensional)
+        """
+        fwf = self._calculate_fwf(completion)
+        mattr = self._calculate_mattr(completion)
+        hapax = self._calculate_hapax(completion)
+
+        return np.array(
+            [fwf, mattr, hapax]
+        )
+
+    @staticmethod
+    def _calculate_fwf(completion: str) -> float:
+        """
+        Compute the function word frequency of a completion.
+
+        :param completion: a plain text completion of a prompt.
+        :return: function word frequency of the completion.
+        """
+        stop_words = set(STOP_WORDS)
+
+        words = re.findall(r"\b\w+\b", completion.lower())
+
+        words_no_punct = [word for word in words if word not in string.punctuation]
+
+        fw_count = sum(1 for word in words_no_punct if word in stop_words)
+
+        return fw_count / len(words_no_punct) if words_no_punct else 0
+
+    @staticmethod
+    def _calculate_mattr(
+            completion: str,
+            window: int = 100,
+    ) -> float:
+        """
+        Compute the MATTR of a completion.
+
+        :param completion: a plain text completion of a prompt.
+        :param window: window size of the window used for computing MATTR.
+        :return: MATTR of the completion.
+        """
+        words = re.findall(r"\b\w+\b", completion.lower())
+
+        words_no_punct = [word for word in words if word not in string.punctuation]
+
+        unique_words = set(words_no_punct)
+
+        ttr = len(unique_words) / len(words) if words else 0
+
+        # First ensure window is not larger than the number of words
+        if len(words_no_punct) < window:
+            mattr = ttr
+        else:
+            mattr = np.mean(
+                [
+                    len(set(words_no_punct[i : i + window])) / window
+                    for i in range(0, len(words_no_punct), window)
+                ]
+            )
+
+        return float(mattr)
+
+    @staticmethod
+    def _calculate_hapax(
+            completion: str,
+    ) -> float:
+        """
+        Compute the hapax legomena frequency of a completion.
+
+        :param completion: a plain text completion of a prompt.
+        :return: hapax legomena frequency of the completion.
+        """
+        words = re.findall(r"\b\w+\b", completion.lower())
+
+        words_no_punct = [word for word in words if word not in string.punctuation]
+
+        hapax = sum(v==1 for v in Counter(words_no_punct).values())
+
+        return hapax / len(words_no_punct) if words_no_punct else 0
