@@ -59,7 +59,8 @@ def stylometric_reward_func(
     ]
 
     true_completions = [
-        manager.get_true_completion(p[0]["content"]) for p in prompts
+        manager.get_true_completion(next(m["content"] for m in p if m["role"] == "user"))
+        for p in prompts
     ]
 
     true_style_vectors = [
