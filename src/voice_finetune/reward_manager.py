@@ -50,9 +50,13 @@ class RewardManager:
         # Completions of prompts/questions from true corpus
         # This is loaded from the training set
         self.true_completions: List[dict] = []
+        # Used to z-score style vectors
+        self.mean_style_vector: np.ndarray = np.array([])
+        self.std_style_vector: np.ndarray = np.array([])
 
         DATA_DIR.mkdir(exist_ok=True)
         self._load_true_completions()
+        self._calculate_mean_and_std()
 
     def _load_true_completions(self) -> None:
         """
@@ -72,6 +76,30 @@ class RewardManager:
                 for line in f
                 if line.strip()
             ]
+
+    def _calculate_mean_and_std(self) -> None:
+        """
+        Calculate vector of mean and std deviation in each style dimension.
+
+        :return: None
+        """
+        if not self.true_completions:
+            raise RuntimeError("Attribute true_completions empty.")
+
+        vectors = []
+        for c in self.true_completions:
+            style_vector = self.calculate_style_vector(
+                next(
+                    msg["content"] for msg in c["messages"] if msg["role"] == "assistant"
+                )
+            )
+            vectors.append(style_vector)
+
+        self.mean_style_vector = np.mean(vectors, axis=0)
+        self.std_style_vector = np.std(vectors, axis=0)
+
+        # Floor std after computing
+        self.std_style_vector = np.maximum(self.std_style_vector, 1e-3)
 
     @staticmethod
     def _save_true_completions() -> None:
@@ -126,7 +154,12 @@ class RewardManager:
 
         raise KeyError("No true completion found for given prompt.")
 
-    def calculate_style_vector(self, completion: str) -> np.ndarray:
+    def calculate_style_vector(
+            self,
+            completion: str,
+            *,
+            z_score: bool = False,
+    ) -> np.ndarray:
         """
         Calculate style vector of a given completion.
 
@@ -136,15 +169,25 @@ class RewardManager:
         - Hapax legomena frequency
 
         :param completion: completion to calculate style vector for
+        :param z_score: whether to z score wrt true completions
         :return: style vector (3-dimensional)
         """
         fwf = self._calculate_fwf(completion)
         mattr = self._calculate_mattr(completion)
         hapax = self._calculate_hapax(completion)
 
-        return np.array(
-            [fwf, mattr, hapax]
+        style_vector = np.array(
+            [
+                fwf,
+                mattr,
+                hapax,
+            ]
         )
+
+        if z_score:
+            return (style_vector - self.mean_style_vector) / self.std_style_vector
+        else:
+            return style_vector
 
     @staticmethod
     def _calculate_fwf(completion: str) -> float:

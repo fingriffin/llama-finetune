@@ -12,7 +12,7 @@ from voice_finetune.reward_manager import RewardManager
 CDF_THRESHOLD = 0.01
 
 # Alpha value for stylometric reward function (inverse temperature)
-ALPHA = 2
+ALPHA = 0.5
 
 def stylometric_reward_func(
         prompts: list[list[dict[str,str]]],
@@ -55,7 +55,7 @@ def stylometric_reward_func(
     manager = RewardManager()
 
     style_vectors = [
-        manager.calculate_style_vector(c[0]["content"]) for c in completions
+        manager.calculate_style_vector(c[0]["content"], z_score=True) for c in completions
     ]
 
     true_completions = [
@@ -64,7 +64,7 @@ def stylometric_reward_func(
     ]
 
     true_style_vectors = [
-        manager.calculate_style_vector(c) for c in true_completions
+        manager.calculate_style_vector(c, z_score=True) for c in true_completions
     ]
 
     # L1 distances
