@@ -13,6 +13,7 @@ from datasets import load_dataset
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT_DIR / "data"
 TRAIN_FILENAME = "train.jsonl"
+VALIDATION_FILENAME = "validation.jsonl"
 
 # TODO: Move this
 STOP_WORDS = [
@@ -60,22 +61,32 @@ class RewardManager:
 
     def _load_true_completions(self) -> None:
         """
-        Load true completions from jsonl file.
+        Load true completions from jsonl files.
 
         If the files do not exist, create them first.
 
         :return: None
         """
-        file = DATA_DIR / TRAIN_FILENAME
-        if not file.exists():
+        train_file = DATA_DIR / TRAIN_FILENAME
+        val_file = DATA_DIR / VALIDATION_FILENAME
+        if not (train_file.exists() and val_file.exists()):
             self._save_true_completions()
 
-        with file.open("r", encoding="utf-8") as f:
-            self.true_completions = [
+        with train_file.open("r", encoding="utf-8") as f:
+            true_completions_train = [
                 json.loads(line)
                 for line in f
                 if line.strip()
             ]
+
+        with val_file.open("r", encoding="utf-8") as f:
+            true_completions_val = [
+                json.loads(line)
+                for line in f
+                if line.strip()
+            ]
+
+        self.true_completions = true_completions_train + true_completions_val
 
     def _calculate_mean_and_std(self) -> None:
         """
@@ -104,15 +115,24 @@ class RewardManager:
     @staticmethod
     def _save_true_completions() -> None:
         """
-        Save the true completions (train.jsonl) to disk.
+        Save the true completions to disk.
+
+        Saves both training and validation set.
 
         :return: None
         """
-        ds = load_dataset(
+        ds_train = load_dataset(
             "AccelerateScience/bush-dataset", # TODO: Config controlled
             split="train"
         )
-        ds.to_json(DATA_DIR / TRAIN_FILENAME)
+
+        ds_val = load_dataset(
+            "AccelerateScience/bush-dataset", # TODO: Config controlled
+            split="validation"
+        )
+
+        ds_train.to_json(DATA_DIR / TRAIN_FILENAME)
+        ds_val.to_json(DATA_DIR / VALIDATION_FILENAME)
 
     def get_true_completion(self, prompt: str) -> str:
         """
