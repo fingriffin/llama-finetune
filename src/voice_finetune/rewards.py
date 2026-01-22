@@ -11,8 +11,14 @@ from voice_finetune.reward_manager import RewardManager
 # This refers to measurements against the base distribution
 CDF_THRESHOLD = 0.01
 
-# Alpha value for stylometric reward function (inverse temperature)
-ALPHA = 0.5
+# TAU is the average per metric distance in (in units of sigmas)
+# where the reward crosses zero. With TAU=1, you get positive reward iff
+# the average |z_i - z'_i| is < 1 standard deviation
+
+TAU = 1
+
+# ALPHA, from the reward function, is related to tau by
+ALPHA = np.log(2) / TAU
 
 def stylometric_reward_func(
         prompts: list[list[dict[str,str]]],
@@ -67,9 +73,9 @@ def stylometric_reward_func(
         manager.calculate_style_vector(c, z_score=True) for c in true_completions
     ]
 
-    # L1 distances
+    # L1 distances (normed)
     distances = [
-        np.sum(np.abs(style_vectors[i] - true_style_vectors[i]))
+        np.sum(np.abs(style_vectors[i] - true_style_vectors[i])) / len(style_vectors[i])
         for i in range(len(style_vectors))
     ]
 
