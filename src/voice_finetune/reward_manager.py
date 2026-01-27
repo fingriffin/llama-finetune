@@ -313,3 +313,7 @@ class RewardManager:
         """
         delta = x - y
         return float(delta.T @ self.inv_cov_style @ delta)
+
+    @staticmethod
+    def _word_count(text: str) -> int:
+        return len(re.findall(r"\b\w+\b", text))
