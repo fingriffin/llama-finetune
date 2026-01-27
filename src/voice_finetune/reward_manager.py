@@ -246,7 +246,6 @@ class RewardManager:
         if n == 0:
             return 0.0
 
-        # If shorter than window, MATTR degenerates to TTR on full text
         if n < window:
             return float(len(set(words_no_punct)) / n)
 
