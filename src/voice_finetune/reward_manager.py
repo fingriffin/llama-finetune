@@ -102,9 +102,19 @@ class RewardManager:
             style_vector = self.calculate_style_vector(
                 next(
                     msg["content"] for msg in c["messages"] if msg["role"] == "assistant"
-                )
+                ),
+                n_words=200,
             )
             vectors.append(style_vector)
+
+        self.cov_style = np.cov(np.stack(vectors), rowvar=False)
+
+        # Regularise covariance for numerical stability
+        eps = 1e-6
+        self.cov_style += eps * np.eye(self.cov_style.shape[0])
+
+        # Precompute inverse once
+        self.inv_cov_style = np.linalg.inv(self.cov_style)
 
         self.mean_style_vector = np.mean(vectors, axis=0)
         self.std_style_vector = np.std(vectors, axis=0)
@@ -292,3 +302,14 @@ class RewardManager:
         hapax = sum(v==1 for v in Counter(words_no_punct).values())
 
         return hapax / len(words_no_punct) if words_no_punct else 0
+
+    def mahalanobis_distance(self, x: np.ndarray, y: np.ndarray) -> float:
+        """
+        Calculate the Mahalanobis distance between two vectors.
+
+        :param x: a vector
+        :param y: another vector
+        :return: mahalanobis distance between x and y
+        """
+        delta = x - y
+        return float(delta.T @ self.inv_cov_style @ delta)
