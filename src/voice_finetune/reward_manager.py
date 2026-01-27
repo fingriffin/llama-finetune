@@ -174,11 +174,26 @@ class RewardManager:
 
         raise KeyError("No true completion found for given prompt.")
 
+    @staticmethod
+    def _truncate_words(text: str, n_words: int) -> str:
+        """
+        Truncate words to n_words characters.
+
+        :param text: text to truncate
+        :param n_words: number of words to truncate
+        :return: truncated text
+        """
+        words = re.findall(r"\b\w+\b", text)
+        if not words:
+            return ""
+        return " ".join(words[:n_words])
+
     def calculate_style_vector(
             self,
             completion: str,
             *,
             z_score: bool = False,
+            n_words: int | None = None,
     ) -> np.ndarray:
         """
         Calculate style vector of a given completion.
@@ -190,8 +205,12 @@ class RewardManager:
 
         :param completion: completion to calculate style vector for
         :param z_score: whether to z score wrt true completions
+        :param n_words: number of words to calculate style vector for
         :return: style vector (3-dimensional)
         """
+        if n_words is not None:
+            completion = self._truncate_words(completion, n_words)
+
         fwf = self._calculate_fwf(completion)
         mattr = self._calculate_mattr(completion)
         hapax = self._calculate_hapax(completion)

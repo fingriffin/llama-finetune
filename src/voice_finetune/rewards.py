@@ -11,6 +11,9 @@ from voice_finetune.reward_manager import RewardManager
 # This refers to measurements against the base distribution
 CDF_THRESHOLD = 0.01
 
+# Number of words to calculate rewards on
+N_WORDS = 200
+
 # TAU is the average per metric distance in (in units of sigmas)
 # where the reward crosses zero. With TAU=1, you get positive reward iff
 # the average |z_i - z'_i| is < 1 standard deviation
@@ -61,7 +64,11 @@ def stylometric_reward_func(
     manager = RewardManager()
 
     style_vectors = [
-        manager.calculate_style_vector(c[0]["content"], z_score=True) for c in completions
+        manager.calculate_style_vector(
+            c[0]["content"],
+            z_score=True,
+            n_words = N_WORDS
+        ) for c in completions
     ]
 
     true_completions = [
@@ -70,7 +77,11 @@ def stylometric_reward_func(
     ]
 
     true_style_vectors = [
-        manager.calculate_style_vector(c, z_score=True) for c in true_completions
+        manager.calculate_style_vector(
+            c,
+            z_score=True,
+            n_words = N_WORDS
+        ) for c in true_completions
     ]
 
     # L1 distances (normed)
