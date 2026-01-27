@@ -240,25 +240,22 @@ class RewardManager:
         :return: MATTR of the completion.
         """
         words = re.findall(r"\b\w+\b", completion.lower())
+        words_no_punct = [w for w in words if w not in string.punctuation]
 
-        words_no_punct = [word for word in words if word not in string.punctuation]
+        n = len(words_no_punct)
+        if n == 0:
+            return 0.0
 
-        unique_words = set(words_no_punct)
+        # If shorter than window, MATTR degenerates to TTR on full text
+        if n < window:
+            return float(len(set(words_no_punct)) / n)
 
-        ttr = len(unique_words) / len(words) if words else 0
+        ttrs = []
+        for i in range(0, n - window + 1):  # stride 1
+            w = words_no_punct[i: i + window]
+            ttrs.append(len(set(w)) / window)
 
-        # First ensure window is not larger than the number of words
-        if len(words_no_punct) < window:
-            mattr = ttr
-        else:
-            mattr = np.mean(
-                [
-                    len(set(words_no_punct[i : i + window])) / window
-                    for i in range(0, len(words_no_punct), window)
-                ]
-            )
-
-        return float(mattr)
+        return float(np.mean(ttrs))
 
     @staticmethod
     def _calculate_hapax(
