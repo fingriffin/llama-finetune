@@ -32,6 +32,10 @@ class TRLConfig(BaseModel):
         ...,
         description="List of weights for stylometric rewards"
     )
+    scale_rewards: bool = Field(
+        False,
+        description="Whether to scale rewards by std within group generation"
+    )
 
     temperature: float = Field(
         0.7,
