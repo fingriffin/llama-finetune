@@ -4,201 +4,115 @@ from typing import Any
 
 import numpy as np
 
-from voice_finetune.distributions import DistributionManager
+from voice_finetune.reward_manager import RewardManager
 
-# Threshold likelihood at which minimum reward is given.
-# This refers to measurements against the true distribution
-LIKELIHOOD_THRESHOLD = 1e-4
-EPS = 1e-12
+# Defaults (can be overridden via function args)
+N_WORDS = 200
+ALPHA = 0.15
+
+LAMBDA_BATCH_MEAN = 0.05
+LAMBDA_BATCH_VAR = 0.05
+BATCH_PENALTY_CLIP = 0.5
+
+LAMBDA_LEN = 0.05
+LEN_CLIP = 1.0
+
 
 def stylometric_reward_func(
-        completions: list[list[dict[str,str]]],
+        prompts: list[list[dict[str, str]]],
+        completions: list[list[dict[str, str]]],
+        *,
+        n_words: int = N_WORDS,
+        alpha: float = ALPHA,
+        lambda_batch_mean: float = LAMBDA_BATCH_MEAN,
+        lambda_batch_var: float = LAMBDA_BATCH_VAR,
+        batch_penalty_clip: float = BATCH_PENALTY_CLIP,
+        lambda_len: float = LAMBDA_LEN,
+        len_clip: float = LEN_CLIP,
         **kwargs: dict
 ) -> Any:
     """
     Return the stylometric reward for each completion.
 
-    The result is the average of rewards associated with each metric:
-    - Function word frequency (FWF)
-    - Moving average type-token ratio (MATTR)
+    Per sample base reward uses squared Mahalanobis distance d between style vectors:
+        r_i = 2 * exp(-alpha * d_i) - 1
+
+    Batch regularisation penalises mismatch of batch mean and per-dimension variance
+    between generated and reference style vectors.
+
+    Length regularisation penalises relative deviation of generated length from
+    reference length (in words).
+
+    The parameter prompts has the following structure:
+
+    prompts = [
+        [ {"role": "user", "content": "..."}, ],
+        ...
+    ]
 
     The parameter completions has the following structure:
 
-    [
-        [
-            {"role": "assistant", "content": ...},
-            {"role": "assistant", "content": ...},
-            ... continued num_generations times,
-        ]
+    completions = [
+        [ {"role": "assistant", "content": "..."}, ],
+        ...
     ]
 
+    :param prompts: List of prompts.
     :param completions: List of completions.
+    :param n_words: Number of words to compute style features on (prefix length).
+    :param alpha: Exponential decay for per-sample style mismatch (larger = stricter).
+    :param lambda_batch_mean: Strength of batch mean-matching penalty.
+    :param lambda_batch_var: Strength of batch variance matching penalty (diag only).
+    :param batch_penalty_clip: Clip applied to total batch penalty for stability.
+    :param lambda_len: Strength of per-sample length penalty.
+    :param len_clip: Clip applied to per-sample relative length error.
     :param kwargs: Keyword arguments from trainer.
-    :return: List of stylometric reward values.
+    :return: List/array of stylometric reward values.
     """
     _ = kwargs
 
-    fwf_rewards = fwf_reward_func(completions)
-    mattr_rewards = mattr_reward_func(completions)
-    hapax_rewards = hapax_reward_func(completions)
+    manager = RewardManager()
 
-    return (fwf_rewards + mattr_rewards + hapax_rewards) / 3
-
-def fwf_reward_func(
-        completions: list[list[dict[str,str]]],
-        **kwargs: dict
-) -> Any:
-    """
-    Return the function word frequency reward for each completion.
-
-    The parameter completions has the following structure:
-
-    [
-        [
-            {"role": "assistant", "content": ...},
-            {"role": "assistant", "content": ...},
-            ... continued num_generations times,
-        ]
+    # Generated + reference texts
+    gen_texts = [c[0]["content"] for c in completions]
+    ref_texts = [
+        manager.get_true_completion(next(m["content"] for m in p if m["role"] == "user"))
+        for p in prompts
     ]
 
-    :param completions: List of completions.
-    :param kwargs: Keyword arguments from trainer.
-    :return: List of fwf reward values.
-    """
-    _ = kwargs
+    # Style vectors
+    X_list = [manager.calculate_style_vector(t, n_words=n_words) for t in gen_texts]
+    Y_list = [manager.calculate_style_vector(t, n_words=n_words) for t in ref_texts]
 
-    manager = DistributionManager(fwf=True)
-
-    fwf_kde_base = manager.fwf_kde_base
-
-    fwf_kde_true = manager.fwf_kde_true
-
-    if not fwf_kde_true or not fwf_kde_base:
-        raise RuntimeError("Failed to load FWF KDEs.")
-
-    fwfs = np.asarray(
-        [
-            manager.calculate_fwf(c[0]["content"])for c in completions
-        ]
+    # Per-sample distances and base reward
+    d = np.asarray(
+        [manager.mahalanobis_distance(X_list[i], Y_list[i]) for i in range(len(X_list))],
+        dtype=np.float32,
     )
+    base_rewards = 2.0 * np.exp(-alpha * d) - 1.0
 
-    likelihoods_true = fwf_kde_true(fwfs)
-    likelihoods_base = fwf_kde_base(fwfs)
+    # Per-sample length penalty (relative word count mismatch)
+    gen_len = np.asarray([manager._word_count(t) for t in gen_texts], dtype=np.float32)
+    ref_len = np.asarray([manager._word_count(t) for t in ref_texts], dtype=np.float32)
+    len_err = np.abs(gen_len - ref_len) / np.maximum(ref_len, 1.0)
+    len_pen = np.clip(len_err, 0.0, len_clip)
 
-    likelihoods_true = np.maximum(likelihoods_true, EPS)
-    likelihoods_base = np.maximum(likelihoods_base, EPS)
+    # Batch penalties (mean + diagonal variance)
+    X = np.stack(X_list)
+    Y = np.stack(Y_list)
 
-    log_ratio = np.log(likelihoods_true) - np.log(likelihoods_base)
+    mean_pen = 0.0
+    if lambda_batch_mean > 0.0:
+        delta_mu = X.mean(axis=0) - Y.mean(axis=0)
+        mean_pen = float(delta_mu.T @ manager.inv_cov_style @ delta_mu)
 
-    result = np.tanh(log_ratio)
+    var_pen = 0.0
+    if lambda_batch_var > 0.0 and X.shape[0] >= 2:
+        var_pen = float(np.sum((X.var(axis=0, ddof=1) - Y.var(axis=0, ddof=1)) ** 2))
 
-    # Apply threshold
-    result[likelihoods_true < LIKELIHOOD_THRESHOLD] = -1
+    batch_pen = lambda_batch_mean * mean_pen + lambda_batch_var * var_pen
+    batch_pen = float(min(batch_pen, batch_penalty_clip))
 
-    return result
-
-def mattr_reward_func(
-        completions: list[list[dict[str,str]]],
-        **kwargs: dict
-) -> Any:
-    """
-    Return the MATTR reward for each completion.
-
-    The parameter completions has the following structure:
-
-    [
-        [
-            {"role": "assistant", "content": ...},
-            {"role": "assistant", "content": ...},
-            ... continued num_generations times,
-        ]
-    ]
-
-    :param completions: List of completions.
-    :param kwargs: Keyword arguments from trainer.
-    :return: List of MATTR reward values.
-    """
-    _ = kwargs
-
-    manager = DistributionManager(mattr=True)
-
-    mattr_kde_base = manager.mattr_kde_base
-
-    mattr_kde_true = manager.mattr_kde_true
-
-    if not mattr_kde_base or not mattr_kde_true:
-        raise RuntimeError("Failed to load MATTR KDE.")
-
-    mattrs = np.asarray(
-        [
-            manager.calculate_mattr(c[0]["content"])for c in completions
-        ]
-    )
-
-    likelihoods_true = mattr_kde_true(mattrs)
-    likelihoods_base = mattr_kde_base(mattrs)
-
-    likelihoods_true = np.maximum(likelihoods_true, EPS)
-    likelihoods_base = np.maximum(likelihoods_base, EPS)
-
-    log_ratio = np.log(likelihoods_true) - np.log(likelihoods_base)
-
-    result = np.tanh(log_ratio)
-
-    # Apply threshold
-    result[likelihoods_true < LIKELIHOOD_THRESHOLD] = -1
-
-    return result
-
-def hapax_reward_func(
-        completions: list[list[dict[str,str]]],
-        **kwargs: dict
-) -> Any:
-    """
-    Return the hapax legomena reward for each completion.
-
-    The parameter completions has the following structure:
-
-    [
-        [
-            {"role": "assistant", "content": ...},
-            {"role": "assistant", "content": ...},
-            ... continued num_generations times,
-        ]
-    ]
-
-    :param completions: List of completions.
-    :param kwargs: Keyword arguments from trainer.
-    :return: List of hapax legomena reward values.
-    """
-    _ = kwargs
-
-    manager = DistributionManager(hapax=True)
-
-    hapax_kde_base = manager.hapax_kde_base
-
-    hapax_kde_true = manager.hapax_kde_true
-
-    if not hapax_kde_base or not hapax_kde_true:
-        raise RuntimeError("Failed to load hapax legomena KDE.")
-
-    hapaxs = np.asarray(
-        [
-            manager.calculate_hapax(c[0]["content"])for c in completions
-        ]
-    )
-
-    likelihoods_true = hapax_kde_true(hapaxs)
-    likelihoods_base = hapax_kde_base(hapaxs)
-
-    likelihoods_true = np.maximum(likelihoods_true, EPS)
-    likelihoods_base = np.maximum(likelihoods_base, EPS)
-
-    log_ratio = np.log(likelihoods_true) - np.log(likelihoods_base)
-
-    result = np.tanh(log_ratio)
-
-    # Apply threshold
-    result[likelihoods_true < LIKELIHOOD_THRESHOLD] = -1
-
-    return result
+    rewards = base_rewards - batch_pen - (lambda_len * len_pen)
+    rewards = np.clip(rewards, -1.0, 1.0)
+    return rewards

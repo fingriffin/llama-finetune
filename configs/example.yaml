@@ -40,6 +40,7 @@ trl: # Optional configuration for TRL, do not include/leave empty if not using T
   num_generations: 4 # Number of generations to sample from
   reward_funcs: # List of reward to use during training
   reward_weights: # List of reward weights
+  scale_rewards: False # Whether to scale rewards by std within group generation
   temperature: 0.7 # Temperature for GRPO sampling when calculating advantages
   log_completions: False # Whether to log completions during training
   num_completions: # Number of completions to print if log_completions
